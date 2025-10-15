@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asteroid Shooter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: #fff;
+            font-family: 'Press Start 2P', cursive;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            display: none; /* Hide initially */
+            background-color: #0c0c1e; /* Deep space blue */
+            cursor: crosshair;
+        }
+        .modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 30, 0.85);
+            border: 2px solid #00ffff;
+            padding: 40px;
+            text-align: center;
+            border-radius: 15px;
+            box-shadow: 0 0 20px #00ffff, 0 0 30px #ff00ff inset;
+            display: none; /* Initially hidden */
+            width: 80%;
+            max-width: 600px;
+        }
+        #ui-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            box-sizing: border-box;
+            display: none; /* Hide initially */
+            justify-content: space-between;
+            align-items: center;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px #ff00ff;
+        }
+        #game-over-modal h2, #pause-modal h2, #mission-briefing-modal h2 {
+            font-size: 48px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #ff4da6;
+            text-shadow: 3px 3px 6px #000;
+        }
+        #pause-btn {
+            font-family: 'Press Start 2P', cursive;
+            background: none;
+            border: 2px solid #fff;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border-radius: 8px;
+        }
+        #pause-btn:hover {
+            background: #fff;
+            color: #0c0c1e;
+        }
+        #start-menu-modal {
+             display: block; /* Show start menu by default */
+        }
+        #start-menu-modal h1 {
+            font-size: 36px;
+            margin-bottom: 30px;
+            color: #ffff00;
+            text-shadow: 3px 3px 6px #000;
+        }
+        .action-btn {
+            padding: 15px 30px;
+            font-size: 24px;
+            font-family: 'Press Start 2P', cursive;
+            background: #00ffff;
+            color: #0c0c1e;
+            border: none;
+            cursor: pointer;
+            border-radius: 10px;
+            box-shadow: 0 0 10px #00ffff;
+            transition: all 0.2s ease-in-out;
+        }
+        .action-btn:hover {
+            background: #ff00ff;
+            color: #fff;
+            box-shadow: 0 0 20px #ff00ff;
+            transform: scale(1.1);
+        }
+        .difficulty-btn {
+            font-size: 20px;
+            margin: 10px;
+            width: 250px;
+        }
+        #final-score {
+            font-size: 32px;
+            margin-bottom: 30px;
+            color: #ffff00;
+        }
+        #mission-briefing-modal h2 {
+             color: #ffff00;
+        }
+        #briefing-text-container {
+            min-height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        #briefing-text {
+            font-size: 18px;
+            line-height: 1.6;
+            color: #c0c0ff;
+            text-align: left;
+        }
+        #briefing-loader {
+            font-size: 20px;
+            color: #00ffff;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div id="score">Score: 0</div>
+        <button id="pause-btn">PAUSE</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-over-modal" class="modal">
+        <h2>GAME OVER</h2>
+        <div id="final-score"></div>
+        <button id="restart-button" class="action-btn">PLAY AGAIN</button>
+    </div>
+
+    <div id="pause-modal" class="modal">
+        <h2>PAUSED</h2>
+        <button id="resume-btn" class="action-btn">RESUME</button>
+    </div>
+
+    <div id="start-menu-modal" class="modal">
+        <h1>✨ ASTEROID SHOOTER ✨</h1>
+        <button class="action-btn difficulty-btn" id="easy-btn">EASY</button><br>
+        <button class="action-btn difficulty-btn" id="medium-btn">MEDIUM</button><br>
+        <button class="action-btn difficulty-btn" id="hard-btn">HARD</button>
+    </div>
+
+    <div id="mission-briefing-modal" class="modal">
+        <h2>MISSION BRIEFING</h2>
+        <div id="briefing-text-container">
+            <div id="briefing-loader">Generating mission parameters...</div>
+            <p id="briefing-text"></p>
+        </div>
+        <button id="start-mission-btn" class="action-btn" style="display: none;">START MISSION</button>
+    </div>
+
+
+    <script>
+        // --- Basic Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // --- UI Elements ---
+        const scoreEl = document.getElementById('score');
+        const uiContainer = document.getElementById('ui-container');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const finalScoreEl = document.getElementById('final-score');
+        const restartButton = document.getElementById('restart-button');
+        const startMenuModal = document.getElementById('start-menu-modal');
+        const easyBtn = document.getElementById('easy-btn');
+        const mediumBtn = document.getElementById('medium-btn');
+        const hardBtn = document.getElementById('hard-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const pauseModal = document.getElementById('pause-modal');
+        const resumeBtn = document.getElementById('resume-btn');
+        const missionBriefingModal = document.getElementById('mission-briefing-modal');
+        const briefingLoader = document.getElementById('briefing-loader');
+        const briefingText = document.getElementById('briefing-text');
+        const startMissionBtn = document.getElementById('start-mission-btn');
+
+
+        // --- Spaceship Image ---
+        const spaceshipImg = new Image();
+        // A cool, retro-style SVG for our spaceship
+        const spaceshipSVG = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="44" viewBox="0 0 25 27.5">
+                <g transform="translate(0, 27.5) scale(1,-1)">
+                    <path d="M12.5 0 L0 25 L12.5 20 L25 25 Z" fill="#cccccc" stroke="#ffffff" stroke-width="0.5"/>
+                    <path d="M12.5 5 L5 22.5 L12.5 17.5 L20 22.5 Z" fill="#ffffff" stroke="#00ffff" stroke-width="0.5"/>
+                    <path d="M10 20 L15 20 L12.5 27.5 Z" fill="#ff4da6" />
+                </g>
+            </svg>`;
+        // Convert SVG string to a data URL so it can be used in canvas
+        spaceshipImg.src = 'data:image/svg+xml;base64,' + btoa(spaceshipSVG.trim());
+
+
+        // --- Game State ---
+        let score = 0;
+        let gameOver = false;
+        let isPaused = false;
+        let player;
+        let bullets = [];
+        let asteroids = [];
+        let particles = [];
+        let asteroidSpawnInterval;
+        let starfield = [];
+        let currentDifficulty;
+        let difficultyLevel = 1;
+        const scoreThreshold = 1000; // Increase difficulty every 1000 points
+
+        const difficulties = {
+            easy: { spawnRate: 1500, speedMultiplier: 1.2 },
+            medium: { spawnRate: 1000, speedMultiplier: 1.6 },
+            hard: { spawnRate: 700, speedMultiplier: 2.2 }
+        };
+
+        // --- Player Ship ---
+        class Player {
+            constructor(x, y, radius, color) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+            }
+
+            draw() {
+                // Draw the SVG image instead of the triangle
+                const imgWidth = 40;
+                const imgHeight = 44;
+                // Center the image on the player's coordinates
+                ctx.drawImage(spaceshipImg, this.x - imgWidth / 2, this.y - imgHeight / 2, imgWidth, imgHeight);
+            }
+
+            update(mouse) {
+                if (mouse.x) {
+                    this.x = mouse.x;
+                }
+                this.draw();
+            }
+        }
+
+        // --- Projectiles ---
+        class Bullet {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.velocity = velocity;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+
+            update() {
+                this.y += this.velocity.y;
+                this.draw();
+            }
+        }
+        
+        // --- Asteroids ---
+        class Asteroid {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.velocity = velocity;
+                // Points based on size (smaller = more points) and speed (faster = more points)
+                this.points = Math.floor(Math.max(1, (50 - radius)) * 5 + velocity.y * 10);
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+
+            update() {
+                this.y += this.velocity.y;
+                this.x += this.velocity.x;
+                this.draw();
+            }
+        }
+        
+        // --- Explosion Particles ---
+        class Particle {
+            constructor(x, y, radius, color, velocity) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.velocity = velocity;
+                this.alpha = 1;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2, false);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+
+            update() {
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.alpha -= 0.02;
+                this.draw();
+            }
+        }
+
+        // --- Game Initialization ---
+        function init() {
+            score = 0;
+            gameOver = false;
+            isPaused = false;
+            difficultyLevel = 1;
+            // Reset difficulty to its base value for the selected mode
+            const selectedDifficulty = Object.keys(difficulties).find(key => difficulties[key] === currentDifficulty.base);
+            currentDifficulty = { ...difficulties[selectedDifficulty], base: difficulties[selectedDifficulty] };
+            
+            bullets = [];
+            asteroids = [];
+            particles = [];
+            scoreEl.textContent = `Score: 0`;
+            gameOverModal.style.display = 'none';
+            pauseModal.style.display = 'none';
+            const playerX = canvas.width / 2;
+            const playerY = canvas.height - 50;
+            player = new Player(playerX, playerY, 20, '#ffffff');
+            
+            starfield = [];
+            for (let i = 0; i < 200; i++) {
+                starfield.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    radius: Math.random() * 2,
+                    alpha: Math.random()
+                });
+            }
+
+            spawnAsteroids();
+        }
+
+        // --- Spawn Logic ---
+        function spawnAsteroids() {
+           clearInterval(asteroidSpawnInterval); // Clear any existing interval
+           asteroidSpawnInterval = setInterval(() => {
+                if(gameOver || isPaused) return;
+                const radius = Math.random() * (40 - 15) + 15; // Random size
+                
+                // Spawn anywhere across the top of the screen
+                const x = Math.random() * canvas.width;
+                const y = -radius; // Start off-screen at the top
+                const color = `hsl(${Math.random() * 360}, 50%, 50%)`;
+                
+                let velocity;
+                let targetX;
+                const targetY = canvas.height; // Target the bottom of the screen
+
+                // 25% of asteroids will target the player's current horizontal position
+                if (Math.random() < 0.25 && player) {
+                    targetX = player.x;
+                } else {
+                    // The other 75% will target a random point biased towards the center
+                    // This creates the effect of them focusing on the center play area
+                    targetX = ((Math.random() + Math.random() + Math.random()) / 3) * canvas.width;
+                }
+                
+                // Calculate the velocity based on the target
+                const angle = Math.atan2(targetY - y, targetX - x);
+                const speed = (Math.random() * 1.5 + 1) * currentDifficulty.speedMultiplier; 
+                velocity = {
+                    x: Math.cos(angle) * speed,
+                    y: Math.sin(angle) * speed
+                };
+                
+                asteroids.push(new Asteroid(x, y, radius, color, velocity));
+            }, currentDifficulty.spawnRate); 
+        }
+        
+        // --- Draw Starfield ---
+        function drawStarfield() {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            starfield.forEach(star => {
+                ctx.globalAlpha = star.alpha;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        // --- Animation Loop ---
+        let animationId;
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            ctx.fillStyle = 'rgba(12, 12, 30, 0.2)'; // Fading effect for trails
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            drawStarfield();
+
+            player.update(mouse);
+
+            particles.forEach((particle, index) => {
+                if (particle.alpha <= 0) {
+                    particles.splice(index, 1);
+                } else {
+                    particle.update();
+                }
+            });
+            
+            bullets.forEach((bullet, bIndex) => {
+                bullet.update();
+                if (bullet.y + bullet.radius < 0) {
+                    setTimeout(() => bullets.splice(bIndex, 1), 0);
+                }
+            });
+
+            asteroids.forEach((asteroid, aIndex) => {
+                asteroid.update();
+                
+                const distPlayer = Math.hypot(player.x - asteroid.x, player.y - asteroid.y);
+                if (distPlayer - asteroid.radius - player.radius < 1) {
+                    endGame();
+                }
+
+                bullets.forEach((bullet, bIndex) => {
+                    const distBullet = Math.hypot(bullet.x - asteroid.x, bullet.y - asteroid.y);
+                    if (distBullet - asteroid.radius - bullet.radius < 1) {
+                        
+                        for(let i = 0; i < asteroid.radius * 0.5; i++){
+                            particles.push(new Particle(bullet.x, bullet.y, Math.random() * 2, asteroid.color, {
+                                x: (Math.random() - 0.5) * (Math.random() * 6),
+                                y: (Math.random() - 0.5) * (Math.random() * 6)
+                            }))
+                        }
+
+                        // Update score and check for difficulty increase
+                        score += asteroid.points;
+                        scoreEl.textContent = `Score: ${score}`;
+
+                        if (score >= scoreThreshold * difficultyLevel) {
+                            difficultyLevel++;
+                            // Increase intensity
+                            currentDifficulty.spawnRate = Math.max(300, currentDifficulty.spawnRate - 100); 
+                            currentDifficulty.speedMultiplier += 0.15;
+                            spawnAsteroids(); // Re-set interval with new faster rate
+                        }
+
+                        setTimeout(() => {
+                           asteroids.splice(aIndex, 1);
+                           bullets.splice(bIndex, 1);
+                        }, 0);
+                    }
+                });
+            });
+        }
+        
+        function endGame() {
+            gameOver = true;
+            cancelAnimationFrame(animationId);
+            clearInterval(asteroidSpawnInterval);
+            gameOverModal.style.display = 'block';
+            uiContainer.style.display = 'none';
+            finalScoreEl.textContent = `Final Score: ${score}`;
+        }
+
+        function startGame(difficulty) {
+            const baseDifficulty = difficulties[difficulty];
+            currentDifficulty = { ...baseDifficulty, base: baseDifficulty }; // Store base for resets
+            missionBriefingModal.style.display = 'none';
+            canvas.style.display = 'block';
+            uiContainer.style.display = 'flex';
+            init();
+            animate();
+        }
+
+        function pauseGame() {
+            if (gameOver) return;
+            isPaused = true;
+            cancelAnimationFrame(animationId);
+            clearInterval(asteroidSpawnInterval);
+            pauseModal.style.display = 'block';
+            pauseBtn.textContent = 'RESUME';
+        }
+
+        function resumeGame() {
+            if (gameOver) return;
+            isPaused = false;
+            pauseModal.style.display = 'none';
+            pauseBtn.textContent = 'PAUSE';
+            spawnAsteroids();
+            animate();
+        }
+
+        function togglePause() {
+            if (isPaused) {
+                resumeGame();
+            } else {
+                pauseGame();
+            }
+        }
+        
+        // --- Gemini API Integration ---
+        async function generateAndShowBriefing(difficulty) {
+            startMenuModal.style.display = 'none';
+            missionBriefingModal.style.display = 'block';
+            briefingLoader.style.display = 'block';
+            briefingText.style.display = 'none';
+            startMissionBtn.style.display = 'none';
+
+            const systemPrompt = `You are a tough, no-nonsense space fleet commander from a classic 80s sci-fi movie. Your job is to brief a lone pilot before they fly into a dangerous asteroid field.`;
+            const userQuery = `Write a very short, dramatic mission briefing (2-3 sentences) for our best pilot. The mission danger level is rated '${difficulty}'. Keep it punchy and motivational.`;
+            
+            startMissionBtn.dataset.difficulty = difficulty; // Store for the start button
+
+            try {
+                const apiKey = ""; // This will be provided by the runtime environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                };
+                
+                // Using exponential backoff for retries
+                let response;
+                let retries = 3;
+                let delay = 1000;
+                for (let i = 0; i < retries; i++) {
+                    response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (response.ok) break;
+                    await new Promise(res => setTimeout(res, delay));
+                    delay *= 2;
+                }
+
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (text) {
+                    briefingText.textContent = text;
+                } else {
+                    throw new Error("No text returned from API.");
+                }
+
+            } catch (error) {
+                console.error("Error fetching mission briefing:", error);
+                // Provide a fallback briefing on error
+                briefingText.textContent = `Intel is scrambled, pilot! We're flying blind on this one. Stick to your training: shoot straight and don't get hit. Now go!`;
+            } finally {
+                briefingLoader.style.display = 'none';
+                briefingText.style.display = 'block';
+                startMissionBtn.style.display = 'inline-block';
+            }
+        }
+
+
+        // --- Event Listeners ---
+        const mouse = {
+            x: canvas.width / 2,
+            y: canvas.height / 2
+        };
+
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX;
+        });
+
+        window.addEventListener('click', (event) => {
+            if(gameOver || isPaused || event.target.closest('.modal')) return;
+            const velocity = { x: 0, y: -10 };
+            bullets.push(new Bullet(player.x, player.y - player.radius, 5, '#ffff00', velocity));
+        });
+
+        restartButton.addEventListener('click', () => {
+            gameOverModal.style.display = 'none';
+            startMenuModal.style.display = 'block';
+        });
+
+        pauseBtn.addEventListener('click', togglePause);
+        resumeBtn.addEventListener('click', resumeGame);
+
+        easyBtn.addEventListener('click', () => generateAndShowBriefing('easy'));
+        mediumBtn.addEventListener('click', () => generateAndShowBriefing('medium'));
+        hardBtn.addEventListener('click', () => generateAndShowBriefing('hard'));
+
+        startMissionBtn.addEventListener('click', () => {
+            const difficulty = startMissionBtn.dataset.difficulty;
+            if (difficulty) {
+                startGame(difficulty);
+            }
+        });
+
+
+        window.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !gameOver && startMenuModal.style.display === 'none') {
+                togglePause();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // Re-center player on resize if they exist
+            if(player) {
+                player.x = canvas.width / 2;
+                player.y = canvas.height - 50;
+            }
+        });
+    </script>
+</body>
+</html>
+
+
