@@ -176,6 +176,12 @@
 
         // --- Initialization ---
         window.addEventListener('load', () => {
+            // Check WebRTC support
+            if (!navigator.mediaDevices || !window.RTCPeerConnection) {
+                alert("❌ Your browser does not support WebRTC (P2P Sharing). Please use Chrome, Firefox, or Edge.");
+                return;
+            }
+
             // UI Check for Hosted vs Local
             if (window.location.protocol !== 'file:') {
                 els.hostInstructions.classList.remove('hidden');
@@ -184,14 +190,15 @@
             // Generate ID
             const randomId = 'wifi-' + Math.random().toString(36).substr(2, 6);
             
-            // --- CRITICAL UPDATE: Add STUN Servers ---
-            // This allows connections to work over the internet/Github Pages by punching through firewalls.
+            // --- CRITICAL: Robust STUN Config ---
             peer = new Peer(randomId, { 
-                debug: 1,
+                debug: 2, // Higher debug level
                 config: {
                     iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' }
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun3.l.google.com:19302' },
+                        { urls: 'stun:stun4.l.google.com:19302' }
                     ]
                 }
             });
@@ -207,7 +214,7 @@
                 const remotePeer = urlParams.get('peer');
                 if (remotePeer && remotePeer !== myId) {
                     log(`Found Peer ID in URL. Connecting to ${remotePeer}...`);
-                    setTimeout(() => connectToPeer(remotePeer), 1000); // Small delay to ensure stability
+                    setTimeout(() => connectToPeer(remotePeer), 1500); // Increased delay
                 }
             });
 
@@ -235,6 +242,12 @@
                         break;
                     case 'browser-incompatible':
                         errorMsg = "❌ Browser incompatible. Use Chrome/Edge/Firefox.";
+                        break;
+                    case 'webrtc': 
+                        errorMsg = "❌ WebRTC Error: Network/Firewall blocking P2P. Try disabling VPN or use a different WiFi.";
+                        break;
+                    case 'ssl-unavailable':
+                        errorMsg = "❌ SSL Required. If you are hosting this, you must use HTTPS.";
                         break;
                     default:
                         errorMsg = `❌ Error: ${err.type}`;
