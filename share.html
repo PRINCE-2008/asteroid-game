@@ -76,35 +76,56 @@
         <!-- Left Panel: Discovery -->
         <div id="left-panel" class="w-full md:w-1/3 lg:w-1/4 p-4 md:p-6 bg-slate-800 border-r border-gray-700 flex flex-col gap-4 overflow-y-auto h-full pb-24 md:pb-6">
             
-            <!-- Discovery Settings -->
+            <!-- Room & Settings -->
             <div class="glass p-4 rounded-xl space-y-3">
                  <div class="flex justify-between items-center">
-                     <label class="text-xs uppercase font-bold text-gray-500">Settings</label>
-                     <span id="room-code-display" class="text-[10px] font-mono bg-slate-900 px-2 py-1 rounded text-gray-400" title="Devices must have matching Room Codes to see each other">Room: ...</span>
+                     <label class="text-xs uppercase font-bold text-gray-500">Network Room</label>
+                     <div class="text-[10px] text-gray-400">Match codes to connect</div>
                  </div>
                  
+                 <!-- Room Code Input -->
+                 <div class="flex gap-2">
+                     <div class="relative flex-1">
+                         <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                             <i class="fa-solid fa-hashtag text-gray-500 text-xs"></i>
+                         </div>
+                         <input type="text" id="room-input" value="..." class="w-full bg-slate-900 border border-gray-700 rounded-lg pl-8 pr-2 py-2 text-sm text-blue-400 font-mono focus:border-blue-500 outline-none transition-colors" placeholder="Room Code">
+                     </div>
+                     <button onclick="applyRoomCode()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 rounded-lg text-xs font-bold transition">
+                         Set
+                     </button>
+                 </div>
+
                  <!-- Role Toggle -->
                  <div class="flex bg-slate-900 rounded-lg p-1 border border-gray-700">
-                     <button onclick="manualSetRole('auto')" id="btn-role-auto" class="flex-1 py-1.5 text-xs font-bold rounded-md transition bg-blue-600 text-white">Auto</button>
-                     <button onclick="manualSetRole('host')" id="btn-role-host" class="flex-1 py-1.5 text-xs font-bold rounded-md transition text-gray-400 hover:text-white">Host</button>
-                     <button onclick="manualSetRole('client')" id="btn-role-client" class="flex-1 py-1.5 text-xs font-bold rounded-md transition text-gray-400 hover:text-white">Client</button>
+                     <button onclick="manualSetRole('auto')" id="btn-role-auto" class="flex-1 py-1.5 text-[10px] font-bold rounded-md transition bg-blue-600 text-white">Auto</button>
+                     <button onclick="manualSetRole('host')" id="btn-role-host" class="flex-1 py-1.5 text-[10px] font-bold rounded-md transition text-gray-400 hover:text-white">Host</button>
+                     <button onclick="manualSetRole('client')" id="btn-role-client" class="flex-1 py-1.5 text-[10px] font-bold rounded-md transition text-gray-400 hover:text-white">Client</button>
                  </div>
-                 <p class="text-[10px] text-gray-500 text-center">
-                    <i class="fa-solid fa-circle-info mr-1"></i> Use 'Auto'. Force 'Host' if visibility fails.
-                 </p>
             </div>
 
-            <div class="glass p-4 rounded-xl">
-                <label class="text-xs uppercase font-bold text-gray-500 block mb-2">My ID</label>
-                <div class="flex items-center gap-2 bg-slate-900 p-2 rounded border border-gray-700">
-                    <code id="my-id" class="text-blue-400 font-mono text-sm truncate flex-1">...</code>
-                    <button onclick="copyId()" class="text-gray-400 p-2"><i class="fa-regular fa-copy"></i></button>
-                </div>
-                <div class="mt-3 text-center">
-                    <button onclick="toggleQR()" class="text-xs text-gray-400 hover:text-white flex items-center justify-center gap-2 w-full py-2 border border-gray-700 rounded">
-                        <i class="fa-solid fa-qrcode"></i> Show QR Code
+            <!-- My Identity Section -->
+            <div class="glass p-4 rounded-xl relative group/edit">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="text-xs uppercase font-bold text-gray-500">My Identity</label>
+                    <button onclick="enableIdEdit()" class="text-xs text-blue-400 hover:text-white flex items-center gap-1">
+                        <i class="fa-solid fa-pen"></i> Edit
                     </button>
-                    <div id="qr-container" class="hidden mt-3 bg-white p-2 rounded-lg inline-block">
+                </div>
+                
+                <div class="flex items-center gap-2 bg-slate-900 p-2 rounded border border-gray-700 transition-colors focus-within:border-blue-500">
+                    <input id="my-id-input" type="text" value="..." disabled 
+                        class="bg-transparent text-blue-400 font-mono text-sm truncate flex-1 outline-none disabled:text-blue-400/80"
+                        onblur="saveCustomId()" onkeydown="if(event.key === 'Enter') this.blur()">
+                    
+                    <button onclick="copyId()" class="text-gray-400 p-1 hover:text-white" title="Copy"><i class="fa-regular fa-copy"></i></button>
+                </div>
+                
+                <div class="mt-3 text-center">
+                    <button onclick="toggleQR()" class="text-xs text-gray-400 hover:text-white flex items-center justify-center gap-2 w-full py-2 border border-gray-700 rounded hover:bg-slate-800 transition">
+                        <i class="fa-solid fa-qrcode"></i> Show/Hide QR
+                    </button>
+                    <div id="qr-container" class="hidden mt-3 bg-white p-2 rounded-lg inline-block shadow-lg">
                          <canvas id="qr-code" class="w-32 h-32"></canvas>
                     </div>
                 </div>
@@ -117,15 +138,15 @@
                 </div>
                 <div id="peer-list" class="space-y-2">
                     <div class="text-center p-4 border border-dashed border-gray-700 rounded-lg text-gray-500 text-xs">
-                        Searching for devices...
+                        Searching... <br> (Check Room Code)
                     </div>
                 </div>
             </div>
 
             <div class="glass p-4 rounded-xl">
-                <label class="text-xs uppercase font-bold text-gray-500 block mb-2">Manual</label>
+                <label class="text-xs uppercase font-bold text-gray-500 block mb-2">Manual Connect</label>
                 <div class="flex gap-2">
-                    <input type="text" id="remote-id" placeholder="Enter ID" class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white">
+                    <input type="text" id="remote-id" placeholder="Enter ID" class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
                     <button onclick="initiateConnection(document.getElementById('remote-id').value)" class="bg-blue-600 text-white px-4 rounded-lg">
                         <i class="fa-solid fa-arrow-right"></i>
                     </button>
@@ -178,7 +199,7 @@
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-                <div class="h-14 md:hidden"></div> <!-- Spacer for mobile nav -->
+                <div class="h-14 md:hidden"></div>
             </div>
         </div>
     </div>
@@ -202,17 +223,17 @@
         let isHost = false;
         let currentRoomHash = '';
         let discoveredPeers = [];
-        let discoveryClients = []; // Host uses this to track connected discovery clients
+        let discoveryClients = []; 
         let activeTransfer = null;
         let connectionRequest = null;
-        let manualRole = 'auto'; // 'auto', 'host', 'client'
+        let manualRole = 'auto'; 
         
         const CHUNK_SIZE = 16 * 1024; 
         const BUFFER_THRESHOLD = 256 * 1024; 
 
         const els = {
             qrCanvas: document.getElementById('qr-code'),
-            myId: document.getElementById('my-id'),
+            myId: document.getElementById('my-id-input'), 
             log: document.getElementById('status-log'),
             emptyState: document.getElementById('empty-state'),
             fileList: document.getElementById('file-list'),
@@ -236,7 +257,7 @@
             tabFiles: document.getElementById('tab-files'),
             fileNotify: document.getElementById('file-notify'),
             qrContainer: document.getElementById('qr-container'),
-            roomCodeDisplay: document.getElementById('room-code-display')
+            roomInput: document.getElementById('room-input')
         };
 
         function switchTab(tab) {
@@ -257,33 +278,61 @@
 
         function triggerFileSelect() {
             if (!conn || !conn.open) {
-                alert("⚠️ Not connected. Please connect to a device first.");
+                alert("⚠️ Not connected. Connect to a device first.");
                 switchTab('conn');
                 return;
             }
             document.getElementById('file-input').click();
         }
 
+        function enableIdEdit() {
+            els.myId.disabled = false;
+            els.myId.focus();
+            els.myId.select();
+            els.myId.classList.add('text-white');
+        }
+
+        function saveCustomId() {
+            const newId = els.myId.value.trim();
+            els.myId.disabled = true;
+            els.myId.classList.remove('text-white');
+            if (newId && newId !== myId) {
+                log(`Setting custom ID: ${newId}...`);
+                if(peer) peer.destroy();
+                initPeerWithId(newId);
+            } else {
+                els.myId.value = myId; 
+            }
+        }
+
+        function applyRoomCode() {
+            const newCode = els.roomInput.value.trim();
+            if(newCode && newCode !== currentRoomHash) {
+                currentRoomHash = newCode;
+                log(`Joining room: ${newCode}`);
+                manualSetRole(manualRole); // Re-init with new room
+            }
+        }
+
         window.addEventListener('load', async () => {
-            // Initial Auto Setup
             try {
                 const res = await fetch('https://api.ipify.org?format=json');
                 const data = await res.json();
-                currentRoomHash = data.ip.replace(/[\.:]/g, '-');
-                log("Room detected via IP.");
+                // Simple hash: last part of IP to make it readable
+                const parts = data.ip.split(/[\.:]/);
+                currentRoomHash = parts[parts.length-1] + "-" + parts[parts.length-2];
+                log("Detected Room: " + currentRoomHash);
             } catch (e) {
-                log("IP check failed. Using random room.");
-                currentRoomHash = 'default-' + Math.floor(Math.random()*1000);
+                log("IP detection failed. Using random.");
+                currentRoomHash = Math.floor(Math.random()*9000 + 1000).toString();
             }
-            els.roomCodeDisplay.textContent = `Room: ${currentRoomHash.substr(0,8)}`;
+            els.roomInput.value = currentRoomHash;
             initPeer(currentRoomHash, 'auto');
             setupDragDrop();
         });
 
         function manualSetRole(role) {
             manualRole = role;
-            
-            // UI Button styling
             ['auto', 'host', 'client'].forEach(r => {
                 const btn = document.getElementById(`btn-role-${r}`);
                 if (r === role) {
@@ -295,84 +344,71 @@
                 }
             });
 
-            // Cleanup existing peer
             if(peer) peer.destroy();
             discoveredPeers = [];
             discoveryClients = [];
             updatePeerListUI();
             
-            log(`Switching to ${role} mode...`);
+            log(`Restarting as ${role}...`);
             initPeer(currentRoomHash, role);
+        }
+
+        function initPeerWithId(customId) {
+            isHost = true; 
+            createPeerInstance(customId);
         }
 
         function initPeer(roomHash, role) {
             const hostId = `wifidrop-host-${roomHash}`;
-            
-            // Determine options based on Role request
             let peerId = null;
             if (role === 'host') peerId = hostId;
-            else if (role === 'client') peerId = null; // Let PeerJS gen random ID
-            else peerId = hostId; // Auto tries to be host first
+            else if (role === 'client') peerId = null; 
+            else peerId = hostId; 
 
-            peer = new Peer(peerId, {
+            createPeerInstance(peerId, role === 'auto' ? hostId : null);
+        }
+
+        function createPeerInstance(id, fallbackHostId) {
+            const options = {
                 debug: 1, secure: true,
                 config: { iceServers: [{ urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
-            });
+            };
+            
+            peer = id ? new Peer(id, options) : new Peer(options);
 
             peer.on('open', (id) => {
-                // If we successfully opened as the fixed Host ID, we are Host
-                if (id === hostId) {
+                myId = id;
+                els.myId.value = id; 
+                generateQR();
+                
+                if (id.startsWith('wifidrop-host-') || (id !== null && !id.startsWith('client-') && !id.startsWith('wifi-client-'))) {
                     isHost = true;
-                    myId = id;
                     onPeerReady();
                     els.roleBadge.innerHTML = '<i class="fa-solid fa-crown text-yellow-400"></i><span>Host</span>';
                     discoveredPeers = [{ id: myId, label: 'Host (You)' }];
                     updatePeerListUI();
                 } else {
-                    // We opened with a random ID (Client mode)
                     isHost = false;
-                    myId = id;
                     onPeerReady();
                     els.roleBadge.innerHTML = '<i class="fa-solid fa-user text-blue-400"></i><span>Client</span>';
-                    connectToHost(hostId);
+                    if(fallbackHostId) connectToHost(fallbackHostId);
                 }
             });
 
             peer.on('error', (err) => {
                 if (err.type === 'unavailable-id') {
-                    // Host ID is taken. 
-                    if (role === 'host') {
-                        alert("Host ID is active. Another device is already Host.");
-                    } else {
-                        // Auto mode: Host taken, become Client
-                        isHost = false;
-                        const clientId = `client-${Math.random().toString(36).substr(2, 5)}`;
-                        // Create a NEW peer instance for client mode
-                        peer = new Peer(clientId, { debug: 1, secure: true });
-                        
-                        // CRITICAL FIX: Attach error handlers to the NEW peer instance
-                        peer.on('error', (clientErr) => {
-                             log(`Client Peer Error: ${clientErr.type}`);
-                             if(clientErr.type === 'peer-unavailable') {
-                                 // This handles the specific error user reported
-                                 // log("Host unreachable. Trying again...");
-                             }
-                        });
-
-                        peer.on('open', (id) => {
-                            myId = id;
-                            onPeerReady();
-                            els.roleBadge.innerHTML = '<i class="fa-solid fa-user text-blue-400"></i><span>Client</span>';
-                            connectToHost(hostId);
-                        });
-                        
-                        peer.on('connection', handleIncomingConnection);
-                    }
+                    // This is expected logic in Auto mode, NOT an error
+                    // log(`Host busy. Joining as client...`); // Optional log
+                    peer.destroy(); 
+                    isHost = false;
+                    createPeerInstance(null, id); // 'id' here is the taken hostId
                 } else if (err.type === 'peer-unavailable') {
-                     // This catches if the initial peer failed to connect to something
-                     // log("Peer unavailable.");
+                    if (!isHost && fallbackHostId) {
+                        log("Host not found. Retrying in 3s...");
+                        setTimeout(() => connectToHost(fallbackHostId), 3000);
+                    }
                 } else {
-                    log(`Peer Error: ${err.type}`);
+                    console.log(`Peer: ${err.type}`);
                 }
             });
 
@@ -380,21 +416,20 @@
         }
 
         function onPeerReady() {
-            els.myId.textContent = myId;
             generateQR();
             els.discoveryStatus.textContent = "Active";
-            
             const urlParams = new URLSearchParams(window.location.search);
             const remotePeer = urlParams.get('peer');
             if (remotePeer && remotePeer !== myId) initiateConnection(remotePeer);
         }
 
         function connectToHost(hostId) {
-            log("Connecting to Host...");
+            log("Scan: Connecting to Host...");
             discoveryConn = peer.connect(hostId, { label: 'discovery', reliable: true });
             
             discoveryConn.on('open', () => {
-                log("Connected to Host.");
+                log("Scan: Connected to Host.");
+                // Explicitly send register to trigger list update on Host
                 discoveryConn.send({ type: 'register', id: myId });
             });
             
@@ -404,65 +439,50 @@
                     updatePeerListUI();
                 }
             });
-            
-            discoveryConn.on('error', (err) => {
-                log("Host connection error. Retrying...");
-                // Simple retry mechanism could be added here
-            });
-            
-            discoveryConn.on('close', () => {
-                 log("Lost connection to Host.");
-            });
         }
 
         function handleIncomingConnection(c) {
-            // 1. Discovery Connection (Host Logic)
+            // HOST LOGIC: Handle Discovery
             if (c.label === 'discovery' && isHost) {
-                
                 c.on('open', () => {
-                    // Track this connection for broadcasting updates
                     if (!discoveryClients.includes(c)) discoveryClients.push(c);
-                    
-                    // Add new peer to list if not exists
-                    if (!discoveredPeers.find(p => p.id === c.peer)) {
-                        discoveredPeers.push({ id: c.peer, label: 'Device ' + c.peer.substr(-4) });
-                        broadcastPeerList(); // Tell everyone about new peer
-                    }
-                    // Send current list to this specific new peer immediately
-                    c.send({ type: 'peer-list', peers: discoveredPeers });
                 });
                 
-                c.on('error', (err) => { console.log("Discovery conn error", err); });
+                c.on('data', (data) => {
+                    if (data.type === 'register') {
+                        // Add peer on explicit register signal
+                        if (!discoveredPeers.find(p => p.id === data.id)) {
+                            discoveredPeers.push({ id: data.id, label: 'Device ' + data.id.substr(-4) });
+                            broadcastPeerList();
+                        }
+                        // Send list back to this specific client
+                        c.send({ type: 'peer-list', peers: discoveredPeers });
+                    }
+                });
 
                 c.on('close', () => {
-                    // Remove peer from list
                     discoveredPeers = discoveredPeers.filter(p => p.id !== c.peer);
                     discoveryClients = discoveryClients.filter(conn => conn !== c);
-                    broadcastPeerList(); // Tell everyone someone left
+                    broadcastPeerList();
                 });
                 return;
             }
-
-            // 2. Standard Connection (File Transfer)
+            // CLIENT/HOST LOGIC: Handle File Transfer
             setupConnection(c);
         }
 
         function broadcastPeerList() {
             if (!isHost) return;
             const data = { type: 'peer-list', peers: discoveredPeers };
-            // Send to all connected discovery clients
-            discoveryClients.forEach(c => {
-                if(c.open) c.send(data);
-            });
+            discoveryClients.forEach(c => { if(c.open) c.send(data); });
         }
 
         function updatePeerListUI() {
             els.peerList.innerHTML = '';
-            // Filter self out
             const list = discoveredPeers.filter(p => p.id !== myId);
             
             if (list.length === 0) {
-                els.peerList.innerHTML = '<div class="text-center p-3 border border-dashed border-gray-700 rounded-lg text-gray-500 text-xs">Scanning... (Check Room Code)</div>';
+                els.peerList.innerHTML = '<div class="text-center p-3 border border-dashed border-gray-700 rounded-lg text-gray-500 text-xs">Scanning...<br>(Check Room Code)</div>';
                 return;
             }
             list.forEach(p => {
@@ -482,10 +502,8 @@
         function initiateConnection(id) {
             if (!id || id === myId) return;
             if (window.innerWidth < 768) switchTab('files');
-            
             els.waitingScreen.classList.remove('hidden');
             els.emptyState.classList.add('hidden');
-            
             conn = peer.connect(id, { reliable: true });
             setupConnection(conn);
         }
@@ -496,7 +514,6 @@
                     c.send({ type: 'connection-request', from: myId });
                 }
             });
-
             c.on('data', (data) => {
                 if (data.type === 'connection-request') {
                     connectionRequest = { conn: c, id: data.from };
@@ -511,7 +528,6 @@
                     handleIncomingData(data);
                 }
             });
-
             c.on('close', () => { resetUI(); log('Disconnected'); });
             conn = c; 
         }
@@ -545,7 +561,6 @@
             resetUI();
         }
 
-        // --- Optimized File Sending for Mobile ---
         async function handleFiles(files) {
             if (!files.length) return;
             if (activeTransfer) return alert("Transfer in progress.");
@@ -561,43 +576,32 @@
             
             const reader = new FileReader();
             let offset = 0;
-            
-            // Wait function to prevent freezing UI
             const wait = ms => new Promise(res => setTimeout(res, ms));
 
             const readSlice = async () => {
                 if (activeTransfer.cancelled) { resetTransferUI(); return; }
-                
-                // Backpressure Check: Low threshold for Mobile
                 if (conn.dataChannel.bufferedAmount > BUFFER_THRESHOLD) {
-                    await wait(50); // Give mobile CPU a break
+                    await wait(50);
                     readSlice();
                     return;
                 }
-
                 const slice = file.slice(offset, offset + CHUNK_SIZE);
                 reader.readAsArrayBuffer(slice);
             };
 
             reader.onload = (e) => {
                 if(!conn || !conn.open || activeTransfer.cancelled) return;
-                
-                try {
-                    conn.send(e.target.result); 
-                } catch(err) {
+                try { conn.send(e.target.result); } catch(err) {
                     console.error("Send Error", err);
-                    alert("Transfer failed. Connection unstable.");
+                    alert("Transfer failed.");
                     cancelTransfer();
                     return;
                 }
-
                 offset += e.target.result.byteLength;
                 const pct = Math.round((offset / file.size) * 100);
                 els.progressBar.style.width = pct + '%';
                 els.progressPercent.textContent = pct + '%';
-                
                 if (offset < file.size) {
-                    // Small delay every few chunks to allow UI updates on low-end phones
                     if (offset % (CHUNK_SIZE * 5) === 0) setTimeout(readSlice, 1);
                     else readSlice();
                 } else {
@@ -617,9 +621,7 @@
                 els.sendBtn.classList.add('hidden');
                 els.progressBox.classList.remove('hidden');
                 els.progressText.textContent = `Rx: ${data.name.substr(0,10)}...`;
-                if (window.innerWidth < 768) {
-                    els.fileNotify.classList.remove('hidden');
-                }
+                if (window.innerWidth < 768) els.fileNotify.classList.remove('hidden');
                 return;
             }
             if (incoming && (data instanceof ArrayBuffer || data instanceof Uint8Array)) {
