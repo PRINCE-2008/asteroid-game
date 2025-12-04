@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WiFi Drop - Local File Share</title>
 
-    <!-- Tailwind CSS (Styling) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- FontAwesome (Icons) -->
+    <!-- FontAwesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- PeerJS (Networking) -->
@@ -25,7 +25,6 @@
             0% { transform: scale(0.33); opacity: 1; }
             80%, 100% { transform: scale(1.5); opacity: 0; }
         }
-        /* Hide scrollbar for chat */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
@@ -41,7 +40,6 @@
             <h1 class="font-bold text-xl tracking-tight">WiFi<span class="text-blue-500">Drop</span></h1>
         </div>
         
-        <!-- Connection Quality Indicator -->
         <div id="connection-badge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700 flex items-center gap-2">
             <div class="w-2 h-2 rounded-full bg-gray-500"></div>
             <span>Waiting...</span>
@@ -54,15 +52,10 @@
         <!-- Left Panel: Identity & Connection -->
         <div class="md:w-1/3 lg:w-1/4 p-6 bg-slate-800 border-r border-gray-700 flex flex-col gap-6 overflow-y-auto">
             
-            <!-- File Mode Warning -->
-            <div id="file-mode-warning" class="hidden bg-yellow-500/10 border border-yellow-500/30 p-3 rounded-lg text-yellow-200 text-xs">
-                <p class="font-bold mb-1"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Running locally</p>
-                Links won't work across devices because this is a local file.
-                <ul class="list-disc list-inside mt-2 opacity-80">
-                    <li>Open this file on <b>both</b> devices.</li>
-                    <li>Copy the ID below.</li>
-                    <li>Enter it on the other device.</li>
-                </ul>
+            <!-- Instructions for Hosted Mode -->
+            <div id="host-instructions" class="hidden bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg text-blue-200 text-xs">
+                <p class="font-bold mb-1"><i class="fa-solid fa-earth-americas mr-1"></i> You are Online</p>
+                To connect, send the link below to your other device.
             </div>
 
             <!-- QR Code Section -->
@@ -73,23 +66,26 @@
                         Click to Copy Link
                     </div>
                 </div>
-                <p class="text-sm text-gray-400 mb-2">Scan with phone or device on same WiFi</p>
+                <p class="text-sm text-gray-400 mb-2">Scan or share link to connect</p>
             </div>
 
             <!-- Manual ID Info -->
             <div class="glass p-4 rounded-xl">
                 <label class="text-xs uppercase font-bold text-gray-500 block mb-2">My Device ID</label>
                 <div class="flex items-center gap-2 bg-slate-900 p-2 rounded border border-gray-700">
-                    <code id="my-id" class="text-blue-400 font-mono text-sm truncate flex-1">...</code>
-                    <button onclick="copyId()" class="text-gray-400 hover:text-white transition-colors" title="Copy to clipboard"><i class="fa-regular fa-copy"></i></button>
+                    <code id="my-id" class="text-blue-400 font-mono text-sm truncate flex-1">Generating...</code>
+                    <button onclick="copyId()" class="text-gray-400 hover:text-white transition-colors" title="Copy ID"><i class="fa-regular fa-copy"></i></button>
                 </div>
+                <button onclick="copyLink()" class="mt-2 w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded transition border border-gray-600">
+                    <i class="fa-solid fa-share-nodes mr-1"></i> Copy Shareable Link
+                </button>
             </div>
 
             <!-- Manual Connect -->
             <div class="glass p-4 rounded-xl" id="manual-connect-box">
                 <label class="text-xs uppercase font-bold text-gray-500 block mb-2">Connect Manually</label>
                 <div class="flex gap-2">
-                    <input type="text" id="remote-id" placeholder="Paste ID here" class="w-full bg-slate-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
+                    <input type="text" id="remote-id" placeholder="Paste Peer ID here" class="w-full bg-slate-900 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500">
                     <button onclick="connectToPeer(document.getElementById('remote-id').value)" class="bg-blue-600 hover:bg-blue-500 text-white px-3 rounded">
                         <i class="fa-solid fa-link"></i>
                     </button>
@@ -119,13 +115,14 @@
                     </div>
                 </div>
                 <h3 class="text-xl font-semibold text-gray-400">Waiting for connection...</h3>
-                <p class="text-sm mt-2 max-w-xs text-center">Open this file on another device to start transferring files.</p>
+                <p class="text-sm mt-2 max-w-xs text-center text-gray-500">
+                    Share the link or ID with another device.<br>
+                    <span class="text-xs opacity-75">(Both must be on this page)</span>
+                </p>
             </div>
 
             <!-- File List (Chat) -->
-            <div id="file-list" class="flex-1 overflow-y-auto p-6 space-y-4 hidden no-scrollbar">
-                <!-- Items injected here -->
-            </div>
+            <div id="file-list" class="flex-1 overflow-y-auto p-6 space-y-4 hidden no-scrollbar"></div>
 
             <!-- Action Bar -->
             <div class="p-4 bg-slate-800 border-t border-gray-700 hidden" id="action-bar">
@@ -174,38 +171,43 @@
             progressPercent: document.getElementById('progress-percent'),
             manualBox: document.getElementById('manual-connect-box'),
             qrContainer: document.getElementById('qr-container'),
-            fileWarning: document.getElementById('file-mode-warning')
+            hostInstructions: document.getElementById('host-instructions')
         };
 
         // --- Initialization ---
         window.addEventListener('load', () => {
-            // Check protocol
-            if (window.location.protocol === 'file:') {
-                els.qrContainer.classList.add('hidden');
-                els.fileWarning.classList.remove('hidden');
+            // UI Check for Hosted vs Local
+            if (window.location.protocol !== 'file:') {
+                els.hostInstructions.classList.remove('hidden');
             }
 
-            // Generate a random ID with a prefix
+            // Generate ID
             const randomId = 'wifi-' + Math.random().toString(36).substr(2, 6);
             
-            // Init PeerJS (Public Cloud Signaling)
-            // Note: We use the cloud only for the "handshake". Data goes P2P.
-            peer = new Peer(randomId, { debug: 1 });
+            // --- CRITICAL UPDATE: Add STUN Servers ---
+            // This allows connections to work over the internet/Github Pages by punching through firewalls.
+            peer = new Peer(randomId, { 
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
+            });
 
             peer.on('open', (id) => {
                 myId = id;
                 els.myId.textContent = id;
-                if (window.location.protocol !== 'file:') {
-                    generateQR();
-                }
-                log(`Ready. ID: ${id}`);
+                generateQR();
+                log(`Server Connected. My ID: ${id}`);
                 
-                // Check if opened via link
+                // Auto-connect if URL has param
                 const urlParams = new URLSearchParams(window.location.search);
                 const remotePeer = urlParams.get('peer');
                 if (remotePeer && remotePeer !== myId) {
-                    log(`Auto-connecting to ${remotePeer}...`);
-                    connectToPeer(remotePeer);
+                    log(`Found Peer ID in URL. Connecting to ${remotePeer}...`);
+                    setTimeout(() => connectToPeer(remotePeer), 1000); // Small delay to ensure stability
                 }
             });
 
@@ -216,37 +218,27 @@
             // Enhanced Error Handling
             peer.on('error', (err) => {
                 console.error(err);
-                
                 let errorMsg = `Error: ${err.type}`;
                 let showAlert = true;
 
                 switch(err.type) {
                     case 'peer-unavailable':
-                        errorMsg = "❌ Device not found. Is the other tab open on that device?";
+                        errorMsg = "❌ Device not found. Is the link correct and the other tab open?";
                         break;
                     case 'network':
-                        errorMsg = "❌ Network error. Check your WiFi connection.";
-                        break;
-                    case 'unavailable-id':
-                        errorMsg = "❌ ID is taken. Try refreshing.";
+                        errorMsg = "❌ Network error. You are offline.";
                         break;
                     case 'disconnected':
-                        errorMsg = "❌ Disconnected from signaling server. Reconnecting...";
+                        errorMsg = "❌ Lost connection to server. Reconnecting...";
                         showAlert = false;
+                        peer.reconnect();
                         break;
                     case 'browser-incompatible':
-                        errorMsg = "❌ Browser not supported. Please use Chrome, Edge, or Firefox.";
-                        break;
-                    case 'invalid-id':
-                        errorMsg = "❌ Invalid ID format.";
-                        break;
-                    case 'ssl-unavailable':
-                        errorMsg = "❌ SSL unavailable. Some browsers require HTTPS for WebRTC.";
+                        errorMsg = "❌ Browser incompatible. Use Chrome/Edge/Firefox.";
                         break;
                     default:
                         errorMsg = `❌ Error: ${err.type}`;
                 }
-
                 log(errorMsg);
                 if(showAlert) alert(errorMsg);
             });
@@ -257,155 +249,115 @@
         // --- Connection Logic ---
         function connectToPeer(id) {
             if(!id) return;
-            log(`Connecting to ${id}...`); // Feedback log
+            log(`Initiating connection to ${id}...`);
             const c = peer.connect(id, { reliable: true });
             handleConnection(c);
         }
 
         function handleConnection(connection) {
-            if(conn) { 
-                connection.close(); 
-                console.log("Already connected, closing new request");
+            if(conn && conn.open) { 
+                console.log("Already connected, ignoring new request");
                 return; 
             } 
             
             conn = connection;
             
+            // Timeout safety
+            const connTimeout = setTimeout(() => {
+                if(!conn.open) {
+                    log("⚠️ Connection taking a while... Firewalls might be blocking it.");
+                }
+            }, 5000);
+
             conn.on('open', () => {
+                clearTimeout(connTimeout);
                 // UI Updates
                 els.emptyState.classList.add('hidden');
                 els.fileList.classList.remove('hidden');
                 els.actionBar.classList.remove('hidden');
                 els.manualBox.classList.add('hidden');
                 els.qrContainer.classList.add('hidden');
-                els.fileWarning.classList.add('hidden');
+                els.hostInstructions.classList.add('hidden');
                 
                 log(`✅ Connected to ${conn.peer}`);
-                checkConnectionStats(); // Check if Local or Internet
-                
-                // Monitor connection stats periodically
+                checkConnectionStats();
                 setInterval(checkConnectionStats, 2000);
             });
 
             conn.on('data', handleData);
             
-            // Explicit connection error handling
-            conn.on('error', (err) => {
-                log(`❌ Connection Error: ${err}`);
-                console.error(err);
-            });
-            
             conn.on('close', () => {
                 resetUI();
-                log('❌ Disconnected');
-                alert('Peer disconnected');
+                log('❌ Peer disconnected');
+                alert('Connection lost');
+            });
+
+            conn.on('error', (err) => {
+                log(`❌ Connection Error: ${err}`);
             });
         }
 
-        // --- The "Same WiFi" Check ---
+        // --- Connectivity Checks ---
         async function checkConnectionStats() {
             if(!conn || !conn.peerConnection) return;
-            
             try {
                 const stats = await conn.peerConnection.getStats();
                 let isLocal = false;
-                
                 stats.forEach(report => {
                     if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                        // Check local candidate type
-                        // Note: Browsers sometimes hide local IPs (mDNS), but 'host' usually means local/LAN
-                        // If it says 'relay', it's using a TURN server (Internet)
-                        // If it says 'srflx', it's STUN (Internet or NAT)
-                        
-                        // We assume it's local if NOT relay
-                        const pair = report;
-                        // Depending on browser, we might need to look up the localCandidateId
-                        isLocal = true; // Default to optimisim 
+                        isLocal = true; // Simplified check
                     }
                 });
-
-                updateBadge(true); // Simplified: WebRTC prefers local if available
-            } catch (e) {
-                console.log("Stats error", e);
-            }
+                updateBadge(true); // Default to connected
+            } catch (e) { console.log(e); }
         }
 
         function updateBadge(isLocal) {
             els.badge.classList.remove('hidden');
-            if(isLocal) {
-                els.badge.innerHTML = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div><span class="text-green-400">⚡ Direct LAN Connection</span>`;
-                els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-900/30 border border-green-500/30 flex items-center gap-2";
-            } else {
-                els.badge.innerHTML = `<div class="w-2 h-2 rounded-full bg-yellow-500"></div><span class="text-yellow-400">☁️ Internet Relay</span>`;
-            }
+            // On public internet, "Local" detection is tricky, so we just show Connected
+            els.badge.innerHTML = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div><span class="text-green-400">Connected</span>`;
+            els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-900/30 border border-green-500/30 flex items-center gap-2";
         }
 
-        // --- Data Transfer (Send) ---
+        // --- Data Transfer ---
         function handleFiles(files) {
             if (!files.length || !conn) return;
             const file = files[0];
-            
-            // 1. Send Meta
             conn.send({ type: 'meta', name: file.name, size: file.size, mime: file.type });
-            
-            // UI
             addFileBubble(file.name, file.size, 'sent', null);
             els.progressBox.classList.remove('hidden');
             
-            // 2. Send Chunks
             const reader = new FileReader();
             let offset = 0;
-            
             reader.onload = (e) => {
                 conn.send({ type: 'chunk', data: e.target.result });
                 offset += e.target.result.byteLength;
-                
                 const pct = Math.round((offset / file.size) * 100);
                 els.progressBar.style.width = pct + '%';
                 els.progressPercent.textContent = pct + '%';
-                
-                if (offset < file.size) {
-                    readSlice(offset);
-                } else {
+                if (offset < file.size) readSlice(offset);
+                else {
                     els.progressBox.classList.add('hidden');
-                    log('File sent finished');
+                    log('File sent successfully');
                 }
             };
-
-            const readSlice = (o) => {
-                const slice = file.slice(o, o + CHUNK_SIZE);
-                reader.readAsArrayBuffer(slice);
-            };
-
+            const readSlice = (o) => reader.readAsArrayBuffer(file.slice(o, o + CHUNK_SIZE));
             readSlice(0);
         }
 
-        // --- Data Transfer (Receive) ---
         let incoming = null;
-
         function handleData(data) {
             if (data.type === 'meta') {
-                incoming = {
-                    name: data.name,
-                    size: data.size,
-                    mime: data.mime,
-                    buffer: [],
-                    received: 0
-                };
+                incoming = { name: data.name, size: data.size, mime: data.mime, buffer: [], received: 0 };
                 log(`Receiving ${data.name}...`);
                 els.progressBox.classList.remove('hidden');
                 els.progressText.textContent = `Receiving ${data.name}...`;
-                
-            } else if (data.type === 'chunk') {
-                if(!incoming) return;
-                
+            } else if (data.type === 'chunk' && incoming) {
                 incoming.buffer.push(data.data);
                 incoming.received += data.data.byteLength;
-                
                 const pct = Math.round((incoming.received / incoming.size) * 100);
                 els.progressBar.style.width = pct + '%';
                 els.progressPercent.textContent = pct + '%';
-                
                 if (incoming.received >= incoming.size) {
                     saveFile();
                 }
@@ -415,138 +367,68 @@
         function saveFile() {
             const blob = new Blob(incoming.buffer, { type: incoming.mime });
             const url = URL.createObjectURL(blob);
-            
             addFileBubble(incoming.name, incoming.size, 'received', url);
-            
             els.progressBox.classList.add('hidden');
             incoming = null;
-            log('Download ready');
+            log('File received');
         }
 
-        // --- UI Utilities ---
+        // --- Helpers ---
         function generateQR() {
-            // Create a URL that includes the peer ID for auto-connection
-            // We use window.location.href (current path) + param
             const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?peer=${myId}`;
-            
-            const qr = new QRious({
-                element: els.qrCanvas,
-                value: url,
-                size: 180,
-                backgroundAlpha: 0,
-                foreground: '#0f172a'
-            });
+            new QRious({ element: els.qrCanvas, value: url, size: 180 });
         }
-
         function addFileBubble(name, size, type, url) {
-            const div = document.createElement('div');
             const isSent = type === 'sent';
-            
+            const div = document.createElement('div');
             div.className = `flex ${isSent ? 'justify-end' : 'justify-start'} animate-fade-in`;
             div.innerHTML = `
                 <div class="${isSent ? 'bg-blue-600' : 'bg-slate-700'} p-4 rounded-2xl max-w-sm border border-white/5 shadow-lg">
                     <div class="flex items-center gap-4">
-                        <div class="bg-black/20 p-3 rounded-lg">
-                            <i class="fa-solid ${isSent ? 'fa-upload' : 'fa-download'} text-xl text-white"></i>
-                        </div>
+                        <div class="bg-black/20 p-3 rounded-lg"><i class="fa-solid ${isSent ? 'fa-upload' : 'fa-download'} text-xl text-white"></i></div>
                         <div class="overflow-hidden">
-                            <p class="font-bold text-white text-sm truncate w-40" title="${name}">${name}</p>
+                            <p class="font-bold text-white text-sm truncate w-40">${name}</p>
                             <p class="text-xs text-blue-200 mt-1">${formatBytes(size)}</p>
                         </div>
                     </div>
-                    ${url ? `
-                        <a href="${url}" download="${name}" class="mt-3 block w-full bg-white/10 hover:bg-white/20 text-center py-2 rounded text-sm font-bold text-white transition">
-                            Save File
-                        </a>
-                    ` : `
-                        <div class="mt-3 text-xs text-blue-200 text-center border-t border-white/10 pt-2">
-                            Successfully Sent
-                        </div>
-                    `}
-                </div>
-            `;
+                    ${url ? `<a href="${url}" download="${name}" class="mt-3 block w-full bg-white/10 hover:bg-white/20 text-center py-2 rounded text-sm font-bold text-white transition">Save File</a>` : ''}
+                </div>`;
             els.fileList.appendChild(div);
             els.fileList.scrollTop = els.fileList.scrollHeight;
         }
-
         function resetUI() {
             conn = null;
             els.emptyState.classList.remove('hidden');
             els.fileList.classList.add('hidden');
             els.actionBar.classList.add('hidden');
             els.manualBox.classList.remove('hidden');
-            if (window.location.protocol !== 'file:') {
-                 els.qrContainer.classList.remove('hidden');
-            } else {
-                 els.fileWarning.classList.remove('hidden');
-            }
+            els.qrContainer.classList.remove('hidden');
+            els.hostInstructions.classList.remove('hidden');
             els.badge.classList.add('hidden');
             els.fileList.innerHTML = '';
         }
-
-        function log(msg) {
-            const d = document.createElement('div');
-            d.textContent = `> ${msg}`;
-            els.log.prepend(d);
-        }
-
-        function formatBytes(bytes) {
-            if (bytes === 0) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-        }
-
+        function log(msg) { els.log.prepend(Object.assign(document.createElement('div'), { textContent: `> ${msg}` })); }
+        function formatBytes(b) { if(!b) return '0B'; const k=1024, i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ['B','KB','MB','GB'][i]; }
+        
         function copyToClipboard(text) {
-            // Fallback for iframe restrictions
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            
-            // Ensure it's not visible but part of the DOM
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            textArea.style.top = "0";
-            document.body.appendChild(textArea);
-            
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                document.execCommand('copy');
-            } catch (err) {
-                console.error('Fallback: Oops, unable to copy', err);
-            }
-            
-            document.body.removeChild(textArea);
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.position="fixed"; ta.style.opacity="0";
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
         }
-
         function copyLink() {
-            const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?peer=${myId}`;
-            copyToClipboard(url);
+            copyToClipboard(`${window.location.protocol}//${window.location.host}${window.location.pathname}?peer=${myId}`);
             alert("Link copied! Send it to the other device.");
         }
-        
-        function copyId() {
-            copyToClipboard(myId);
-            const btn = document.querySelector('button[onclick="copyId()"]');
-            const originalHTML = btn.innerHTML;
-            btn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i>';
-            setTimeout(() => {
-                btn.innerHTML = originalHTML;
-            }, 1000);
-        }
-
-        // Drag & Drop
+        function copyId() { copyToClipboard(myId); alert("ID Copied"); }
         function setupDragDrop() {
             window.addEventListener('dragenter', () => els.dropZone.classList.remove('hidden'));
             els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.add('hidden'));
             els.dropZone.addEventListener('dragover', e => e.preventDefault());
-            els.dropZone.addEventListener('drop', e => {
-                e.preventDefault();
-                els.dropZone.classList.add('hidden');
-                if(e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-            });
+            els.dropZone.addEventListener('drop', e => { e.preventDefault(); els.dropZone.classList.add('hidden'); handleFiles(e.dataTransfer.files); });
         }
     </script>
 </body>
