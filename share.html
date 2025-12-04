@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WiFi Drop - Local File Share</title>
+    <title>WiFi Drop - GitHub Edition</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -40,9 +40,15 @@
             <h1 class="font-bold text-xl tracking-tight">WiFi<span class="text-blue-500">Drop</span></h1>
         </div>
         
-        <div id="connection-badge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700 flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-gray-500"></div>
-            <span>Waiting...</span>
+        <div class="flex gap-2">
+            <div id="server-status" class="px-3 py-1 rounded-full text-xs font-bold bg-red-900/30 border border-red-500/30 text-red-400 flex items-center gap-2" title="Signaling Server Status">
+                <div class="w-2 h-2 rounded-full bg-red-500"></div>
+                <span>Offline</span>
+            </div>
+            <div id="connection-badge" class="hidden px-3 py-1 rounded-full text-xs font-bold bg-gray-800 text-gray-400 border border-gray-700 flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-gray-500"></div>
+                <span>Waiting...</span>
+            </div>
         </div>
     </nav>
 
@@ -54,8 +60,8 @@
             
             <!-- Instructions for Hosted Mode -->
             <div id="host-instructions" class="hidden bg-blue-500/10 border border-blue-500/30 p-3 rounded-lg text-blue-200 text-xs">
-                <p class="font-bold mb-1"><i class="fa-solid fa-earth-americas mr-1"></i> You are Online</p>
-                To connect, send the link below to your other device.
+                <p class="font-bold mb-1"><i class="fa-solid fa-earth-americas mr-1"></i> Ready to Connect</p>
+                Send the link below to your other device to start.
             </div>
 
             <!-- QR Code Section -->
@@ -73,7 +79,7 @@
             <div class="glass p-4 rounded-xl">
                 <label class="text-xs uppercase font-bold text-gray-500 block mb-2">My Device ID</label>
                 <div class="flex items-center gap-2 bg-slate-900 p-2 rounded border border-gray-700">
-                    <code id="my-id" class="text-blue-400 font-mono text-sm truncate flex-1">Generating...</code>
+                    <code id="my-id" class="text-blue-400 font-mono text-sm truncate flex-1">Initializing...</code>
                     <button onclick="copyId()" class="text-gray-400 hover:text-white transition-colors" title="Copy ID"><i class="fa-regular fa-copy"></i></button>
                 </div>
                 <button onclick="copyLink()" class="mt-2 w-full bg-slate-700 hover:bg-slate-600 text-white text-xs py-2 rounded transition border border-gray-600">
@@ -164,6 +170,7 @@
             fileList: document.getElementById('file-list'),
             actionBar: document.getElementById('action-bar'),
             badge: document.getElementById('connection-badge'),
+            serverStatus: document.getElementById('server-status'),
             dropZone: document.getElementById('drop-zone'),
             progressBox: document.getElementById('progress-container'),
             progressBar: document.getElementById('progress-bar'),
@@ -176,23 +183,22 @@
 
         // --- Initialization ---
         window.addEventListener('load', () => {
-            // Check WebRTC support
             if (!navigator.mediaDevices || !window.RTCPeerConnection) {
-                alert("❌ Your browser does not support WebRTC (P2P Sharing). Please use Chrome, Firefox, or Edge.");
+                alert("❌ Your browser does not support WebRTC. Please use Chrome/Edge/Firefox.");
                 return;
             }
 
-            // UI Check for Hosted vs Local
             if (window.location.protocol !== 'file:') {
                 els.hostInstructions.classList.remove('hidden');
             }
 
-            // Generate ID
             const randomId = 'wifi-' + Math.random().toString(36).substr(2, 6);
             
-            // --- CRITICAL: Robust STUN Config ---
+            // --- GITHUB PAGES CONFIGURATION ---
             peer = new Peer(randomId, { 
-                debug: 2, // Higher debug level
+                debug: 2,
+                secure: true, // Forces HTTPS/WSS (Required for GitHub Pages)
+                pingInterval: 5000, // Keep-alive for stable connection
                 config: {
                     iceServers: [
                         { urls: 'stun:stun1.l.google.com:19302' },
@@ -206,15 +212,18 @@
             peer.on('open', (id) => {
                 myId = id;
                 els.myId.textContent = id;
+                els.serverStatus.innerHTML = '<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div><span class="text-green-400">Online</span>';
+                els.serverStatus.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-900/30 border border-green-500/30 flex items-center gap-2";
+                
                 generateQR();
                 log(`Server Connected. My ID: ${id}`);
                 
-                // Auto-connect if URL has param
+                // Parse URL for peer ID
                 const urlParams = new URLSearchParams(window.location.search);
                 const remotePeer = urlParams.get('peer');
                 if (remotePeer && remotePeer !== myId) {
-                    log(`Found Peer ID in URL. Connecting to ${remotePeer}...`);
-                    setTimeout(() => connectToPeer(remotePeer), 1500); // Increased delay
+                    log(`Found Peer ID in URL. Auto-connecting to ${remotePeer}...`);
+                    setTimeout(() => connectToPeer(remotePeer), 2000); 
                 }
             });
 
@@ -222,38 +231,25 @@
                 handleConnection(c);
             });
 
-            // Enhanced Error Handling
+            peer.on('disconnected', () => {
+                 els.serverStatus.innerHTML = '<div class="w-2 h-2 rounded-full bg-red-500"></div><span class="text-red-400">Disconnected</span>';
+                 els.serverStatus.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-900/30 border border-red-500/30 flex items-center gap-2";
+                 log("Lost connection to signaling server. Reconnecting...");
+                 peer.reconnect();
+            });
+
             peer.on('error', (err) => {
                 console.error(err);
                 let errorMsg = `Error: ${err.type}`;
-                let showAlert = true;
-
                 switch(err.type) {
-                    case 'peer-unavailable':
-                        errorMsg = "❌ Device not found. Is the link correct and the other tab open?";
-                        break;
-                    case 'network':
-                        errorMsg = "❌ Network error. You are offline.";
-                        break;
-                    case 'disconnected':
-                        errorMsg = "❌ Lost connection to server. Reconnecting...";
-                        showAlert = false;
-                        peer.reconnect();
-                        break;
-                    case 'browser-incompatible':
-                        errorMsg = "❌ Browser incompatible. Use Chrome/Edge/Firefox.";
-                        break;
-                    case 'webrtc': 
-                        errorMsg = "❌ WebRTC Error: Network/Firewall blocking P2P. Try disabling VPN or use a different WiFi.";
-                        break;
-                    case 'ssl-unavailable':
-                        errorMsg = "❌ SSL Required. If you are hosting this, you must use HTTPS.";
-                        break;
-                    default:
-                        errorMsg = `❌ Error: ${err.type}`;
+                    case 'peer-unavailable': errorMsg = "❌ Device not found. Check ID/Link."; break;
+                    case 'network': errorMsg = "❌ Network error. You are offline."; break;
+                    case 'browser-incompatible': errorMsg = "❌ Browser incompatible."; break;
+                    case 'webrtc': errorMsg = "❌ Connection blocked by Firewall/VPN."; break;
+                    case 'ssl-unavailable': errorMsg = "❌ SSL Required. Use HTTPS."; break;
+                    case 'server-error': errorMsg = "❌ PeerJS Server Error. Try refreshing."; break;
                 }
                 log(errorMsg);
-                if(showAlert) alert(errorMsg);
             });
 
             setupDragDrop();
@@ -263,28 +259,28 @@
         function connectToPeer(id) {
             if(!id) return;
             log(`Initiating connection to ${id}...`);
+            // reliable: true is crucial for file transfer
             const c = peer.connect(id, { reliable: true });
             handleConnection(c);
         }
 
         function handleConnection(connection) {
             if(conn && conn.open) { 
-                console.log("Already connected, ignoring new request");
+                console.log("Existing connection found");
                 return; 
             } 
             
             conn = connection;
             
-            // Timeout safety
             const connTimeout = setTimeout(() => {
                 if(!conn.open) {
-                    log("⚠️ Connection taking a while... Firewalls might be blocking it.");
+                    log("⚠️ Connection stalling. Possible firewall issue.");
                 }
-            }, 5000);
+            }, 8000);
 
             conn.on('open', () => {
                 clearTimeout(connTimeout);
-                // UI Updates
+                // UI Transitions
                 els.emptyState.classList.add('hidden');
                 els.fileList.classList.remove('hidden');
                 els.actionBar.classList.remove('hidden');
@@ -310,24 +306,16 @@
             });
         }
 
-        // --- Connectivity Checks ---
         async function checkConnectionStats() {
             if(!conn || !conn.peerConnection) return;
             try {
-                const stats = await conn.peerConnection.getStats();
-                let isLocal = false;
-                stats.forEach(report => {
-                    if (report.type === 'candidate-pair' && report.state === 'succeeded') {
-                        isLocal = true; // Simplified check
-                    }
-                });
-                updateBadge(true); // Default to connected
+                // Keep connected badge visible
+                updateBadge(true); 
             } catch (e) { console.log(e); }
         }
 
         function updateBadge(isLocal) {
             els.badge.classList.remove('hidden');
-            // On public internet, "Local" detection is tricky, so we just show Connected
             els.badge.innerHTML = `<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_5px_#22c55e]"></div><span class="text-green-400">Connected</span>`;
             els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-900/30 border border-green-500/30 flex items-center gap-2";
         }
@@ -336,25 +324,40 @@
         function handleFiles(files) {
             if (!files.length || !conn) return;
             const file = files[0];
+            
+            // 1. Send Metadata
             conn.send({ type: 'meta', name: file.name, size: file.size, mime: file.type });
+            
             addFileBubble(file.name, file.size, 'sent', null);
             els.progressBox.classList.remove('hidden');
             
+            // 2. Chunked Reading
             const reader = new FileReader();
             let offset = 0;
+            
             reader.onload = (e) => {
+                if(!conn || !conn.open) return;
+                
                 conn.send({ type: 'chunk', data: e.target.result });
                 offset += e.target.result.byteLength;
+                
                 const pct = Math.round((offset / file.size) * 100);
                 els.progressBar.style.width = pct + '%';
                 els.progressPercent.textContent = pct + '%';
-                if (offset < file.size) readSlice(offset);
-                else {
+                
+                if (offset < file.size) {
+                    readSlice(offset);
+                } else {
                     els.progressBox.classList.add('hidden');
                     log('File sent successfully');
                 }
             };
-            const readSlice = (o) => reader.readAsArrayBuffer(file.slice(o, o + CHUNK_SIZE));
+
+            const readSlice = (o) => {
+                const slice = file.slice(o, o + CHUNK_SIZE);
+                reader.readAsArrayBuffer(slice);
+            };
+
             readSlice(0);
         }
 
@@ -368,9 +371,11 @@
             } else if (data.type === 'chunk' && incoming) {
                 incoming.buffer.push(data.data);
                 incoming.received += data.data.byteLength;
+                
                 const pct = Math.round((incoming.received / incoming.size) * 100);
                 els.progressBar.style.width = pct + '%';
                 els.progressPercent.textContent = pct + '%';
+                
                 if (incoming.received >= incoming.size) {
                     saveFile();
                 }
@@ -388,9 +393,19 @@
 
         // --- Helpers ---
         function generateQR() {
-            const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?peer=${myId}`;
-            new QRious({ element: els.qrCanvas, value: url, size: 180 });
+            // Remove existing query params to ensure clean link
+            const baseUrl = window.location.href.split('?')[0];
+            const url = `${baseUrl}?peer=${myId}`;
+            
+            new QRious({ 
+                element: els.qrCanvas, 
+                value: url, 
+                size: 180,
+                backgroundAlpha: 0,
+                foreground: '#0f172a'
+            });
         }
+
         function addFileBubble(name, size, type, url) {
             const isSent = type === 'sent';
             const div = document.createElement('div');
@@ -409,6 +424,7 @@
             els.fileList.appendChild(div);
             els.fileList.scrollTop = els.fileList.scrollHeight;
         }
+
         function resetUI() {
             conn = null;
             els.emptyState.classList.remove('hidden');
@@ -416,10 +432,11 @@
             els.actionBar.classList.add('hidden');
             els.manualBox.classList.remove('hidden');
             els.qrContainer.classList.remove('hidden');
-            els.hostInstructions.classList.remove('hidden');
+            if (window.location.protocol !== 'file:') els.hostInstructions.classList.remove('hidden');
             els.badge.classList.add('hidden');
             els.fileList.innerHTML = '';
         }
+
         function log(msg) { els.log.prepend(Object.assign(document.createElement('div'), { textContent: `> ${msg}` })); }
         function formatBytes(b) { if(!b) return '0B'; const k=1024, i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ['B','KB','MB','GB'][i]; }
         
@@ -432,11 +449,16 @@
             document.execCommand('copy');
             document.body.removeChild(ta);
         }
+
         function copyLink() {
-            copyToClipboard(`${window.location.protocol}//${window.location.host}${window.location.pathname}?peer=${myId}`);
+            const baseUrl = window.location.href.split('?')[0];
+            const url = `${baseUrl}?peer=${myId}`;
+            copyToClipboard(url);
             alert("Link copied! Send it to the other device.");
         }
+
         function copyId() { copyToClipboard(myId); alert("ID Copied"); }
+
         function setupDragDrop() {
             window.addEventListener('dragenter', () => els.dropZone.classList.remove('hidden'));
             els.dropZone.addEventListener('dragleave', () => els.dropZone.classList.add('hidden'));
