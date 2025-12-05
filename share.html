@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WiFi Drop - Ultra Speed</title>
+    <title>WiFi Drop - Stable Connect</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -526,8 +526,18 @@
             // Close existing
             if(conn) conn.close();
 
+            // Set timeout to avoid infinite hang
+            setTimeout(() => {
+                if (!conn || !conn.open) {
+                    showToast("Connection failed (Timeout)", "error");
+                    els.waitingScreen.classList.add('hidden');
+                    els.emptyState.classList.remove('hidden');
+                }
+            }, 5000);
+
             try {
-                conn = peer.connect(id, { reliable: true });
+                // Try reliable first, if fails we could fallback (not implemented here for simplicity but good practice)
+                conn = peer.connect(id, { reliable: true, serialization: 'json' });
                 setupConnection(conn);
             } catch (e) {
                 showToast("Connection failed", "error");
