@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WiFi Drop - Simple</title>
+    <title>WiFi Drop - Reliable Connect</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -62,7 +62,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-none text-white tracking-tight">WiFi<span class="text-blue-500">Drop</span></h1>
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Simple P2P</p>
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Reliable</p>
             </div>
         </div>
         <div id="status-pill" class="px-3 py-1.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-2">
@@ -127,7 +127,7 @@
             <div id="waiting-screen" class="hidden absolute inset-0 bg-slate-950/95 z-40 flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm">
                 <div class="w-12 h-12 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
                 <h3 class="text-lg font-bold text-white mb-1">Connecting...</h3>
-                <p class="text-slate-400 text-xs mb-4">Please wait up to 15 seconds.</p>
+                <p id="connect-status-text" class="text-slate-400 text-xs mb-4">Establishing secure link.</p>
                 <button onclick="cancelConnection()" class="text-red-400 text-xs hover:text-red-300">Cancel</button>
             </div>
 
@@ -183,8 +183,8 @@
 
     <script>
         // --- CONFIGURATION ---
-        const CHUNK_SIZE = 64 * 1024; // 64KB for compatibility
-        const BUFFER_THRESHOLD = 1024 * 1024; // 1MB buffer limit
+        const CHUNK_SIZE = 64 * 1024; // 64KB for max compatibility
+        const BUFFER_THRESHOLD = 1024 * 1024; // 1MB buffer
 
         let peer;
         let conn;
@@ -209,6 +209,7 @@
             requestModal: document.getElementById('request-modal'),
             requestIdDisplay: document.getElementById('request-id'),
             waitingScreen: document.getElementById('waiting-screen'),
+            waitingText: document.getElementById('connect-status-text'),
             leftPanel: document.getElementById('left-panel'),
             rightPanel: document.getElementById('right-panel'),
             tabConn: document.getElementById('tab-conn'),
@@ -278,7 +279,8 @@
                 config: { 
                     iceServers: [
                         { urls: 'stun:stun1.l.google.com:19302' }, 
-                        { urls: 'stun:global.stun.twilio.com:3478' }
+                        { urls: 'stun:global.stun.twilio.com:3478' },
+                        { urls: 'stun:stun.services.mozilla.com' }
                     ] 
                 }
             };
@@ -297,7 +299,7 @@
                 if (err.type === 'unavailable-id') {
                     showToast("ID Taken. Try another.", "error");
                 } else if (err.type === 'peer-unavailable') {
-                    // Do nothing here, handled in initiateConnection
+                    // Handled in connect logic
                 } else if (err.type === 'disconnected' || err.type === 'network' || err.message.includes('Lost connection')) {
                     updateStatus("Reconnecting...", "yellow");
                     if(peer && !peer.destroyed) peer.reconnect();
@@ -323,21 +325,32 @@
             if (window.innerWidth < 768) switchTab('files');
             
             els.waitingScreen.classList.remove('hidden');
+            els.waitingText.textContent = "Negotiating connection...";
             els.emptyState.classList.add('hidden');
             
             if(conn) conn.close();
             
-            // Long timeout for slow networks
-            setTimeout(() => {
+            // Connection Timeout
+            const timeout = setTimeout(() => {
                 if(!conn || !conn.open) {
                     els.waitingScreen.classList.add('hidden');
-                    if (!conn) showToast("Connection Timeout. Check ID.", "error");
+                    if (!conn || !conn.open) showToast("Connection Timeout. Retry.", "error");
                 }
             }, 15000);
 
             try {
-                conn = peer.connect(id, { reliable: true });
+                // Simplified connection options
+                conn = peer.connect(id);
                 setupConnection(conn);
+                
+                // Monitor ICE state for "Checking" hangs
+                conn.peerConnection.oniceconnectionstatechange = () => {
+                    const state = conn.peerConnection.iceConnectionState;
+                    if(state === 'disconnected' || state === 'failed') {
+                        showToast("Network firewall block detected", "error");
+                    }
+                };
+
             } catch(e) { showToast("Error initializing connection", "error"); }
         }
 
@@ -346,6 +359,7 @@
                 // If we initiated, send request
                 if (c.peer === conn?.peer && !els.waitingScreen.classList.contains('hidden')) {
                     c.send({ type: 'connection-request', from: myId });
+                    els.waitingText.textContent = "Waiting for acceptance...";
                 }
             });
 
@@ -367,7 +381,7 @@
             c.on('close', () => { 
                 resetUI(); 
                 showToast("Disconnected", "error"); 
-                updateStatus("Online", "green"); // Revert status
+                updateStatus("Online", "green"); 
             });
             
             c.on('error', (err) => {
