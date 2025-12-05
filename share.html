@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WiFi Drop - Stability Edition</title>
+    <title>WiFi Drop - Simple</title>
 
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -18,28 +18,18 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
 
     <style>
-        /* Base Theme */
         body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', system-ui, sans-serif; touch-action: manipulation; }
-        
-        /* Glassmorphism */
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-        
-        /* Scrollbar Hiding */
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        /* Animations */
+        .tab-active { color: #60a5fa; background: rgba(51, 65, 85, 0.5); border-top: 2px solid #60a5fa; }
+        .tab-inactive { color: #94a3b8; border-top: 2px solid transparent; }
         .modal-enter { animation: modalIn 0.2s ease-out forwards; }
         @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        
         .toast-enter { animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .toast-exit { animation: slideOut 0.3s ease-in forwards; }
         @keyframes slideIn { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
         @keyframes slideOut { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -20px); } }
-
-        /* Mobile Tab States */
-        .tab-active { color: #60a5fa; background: rgba(51, 65, 85, 0.5); border-top: 2px solid #60a5fa; }
-        .tab-inactive { color: #94a3b8; border-top: 2px solid transparent; }
     </style>
 </head>
 <body class="h-[100dvh] flex flex-col overflow-hidden bg-slate-900">
@@ -55,7 +45,7 @@
             </div>
             <h3 class="text-lg font-bold text-white mb-1">Incoming Connection</h3>
             <p class="text-slate-400 text-xs mb-6">
-                <span id="request-id" class="font-mono text-white bg-slate-700 px-1.5 py-0.5 rounded">Device</span> wants to share files.
+                <span id="request-id" class="font-mono text-white bg-slate-700 px-1.5 py-0.5 rounded">Device</span> wants to connect.
             </p>
             <div class="flex gap-3">
                 <button onclick="respondToRequest(false)" class="flex-1 py-2.5 rounded-xl border border-slate-600 text-slate-300 hover:bg-slate-700 text-xs font-bold transition">Decline</button>
@@ -72,7 +62,7 @@
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-none text-white tracking-tight">WiFi<span class="text-blue-500">Drop</span></h1>
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Stable Edition</p>
+                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-0.5">Simple P2P</p>
             </div>
         </div>
         <div id="status-pill" class="px-3 py-1.5 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-2">
@@ -84,7 +74,7 @@
     <!-- Content Layout -->
     <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden min-h-0">
         
-        <!-- Left Panel: Settings & Discovery -->
+        <!-- Left Panel: My ID & Connect -->
         <div id="left-panel" class="w-full md:w-[320px] lg:w-[360px] bg-slate-900 border-r border-gray-800 flex flex-col h-full overflow-y-auto z-10 pb-20 md:pb-0">
             <div class="p-4 space-y-4">
                 
@@ -96,42 +86,24 @@
                     </div>
                     
                     <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-gray-700 mb-3">
-                        <input id="my-id-input" type="text" value="Generating..." disabled class="bg-transparent text-white font-mono text-xs w-full outline-none">
-                        <button onclick="copyId()" class="text-gray-500 hover:text-white p-1"><i class="fa-regular fa-copy"></i></button>
+                        <!-- Editable Input -->
+                        <input id="my-id-input" type="text" class="bg-transparent text-white font-mono text-xs w-full outline-none" placeholder="Loading...">
+                        <button onclick="setCustomId()" class="text-xs bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 transition">Set</button>
+                        <button onclick="copyId()" class="text-gray-500 hover:text-white p-1 ml-1" title="Copy"><i class="fa-regular fa-copy"></i></button>
                     </div>
 
                     <div id="qr-container" class="hidden bg-white p-3 rounded-xl mx-auto w-max mb-3">
                          <canvas id="qr-code" class="w-32 h-32"></canvas>
                     </div>
-
-                    <!-- Room Code -->
-                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1.5">Network Room</label>
-                    <div class="flex gap-2">
-                        <input type="text" id="room-input" class="w-full bg-slate-950 border border-gray-700 rounded-xl px-3 py-2 text-xs text-blue-400 font-mono outline-none focus:border-blue-500 transition-colors" placeholder="Room Code">
-                        <button onclick="applyRoomCode()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 rounded-xl text-xs font-bold border border-slate-700 transition">Join</button>
-                    </div>
-                </div>
-
-                <!-- Discovery List -->
-                <div class="flex-1">
-                    <div class="flex justify-between items-center mb-2 px-1">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Nearby Devices</span>
-                        <button onclick="refreshDiscovery()" class="text-[10px] text-blue-400 hover:text-white flex items-center gap-1 transition">
-                            <i class="fa-solid fa-rotate-right"></i> Refresh
-                        </button>
-                    </div>
                     
-                    <div id="peer-list" class="space-y-2 pb-4">
-                        <div class="text-center py-8 border border-dashed border-slate-800 rounded-xl">
-                            <p class="text-xs text-gray-600">Scanning network...</p>
-                        </div>
-                    </div>
+                    <p class="text-[10px] text-gray-500 text-center">Share this ID with your partner.</p>
                 </div>
 
                 <!-- Manual Connect -->
-                <div class="glass p-3 rounded-2xl">
+                <div class="glass p-4 rounded-2xl">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-3">Connect to Partner</label>
                     <div class="flex gap-2">
-                        <input type="text" id="remote-id" placeholder="Enter Peer ID Manually" class="w-full bg-slate-950 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-blue-500">
+                        <input type="text" id="remote-id" placeholder="Enter Partner's ID" class="w-full bg-slate-950 border border-gray-700 rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
                         <button onclick="initiateConnection(document.getElementById('remote-id').value)" class="bg-blue-600 hover:bg-blue-500 text-white w-10 rounded-xl flex items-center justify-center shadow-lg transition">
                             <i class="fa-solid fa-arrow-right text-xs"></i>
                         </button>
@@ -155,15 +127,16 @@
             <div id="waiting-screen" class="hidden absolute inset-0 bg-slate-950/95 z-40 flex flex-col items-center justify-center text-center p-6 backdrop-blur-sm">
                 <div class="w-12 h-12 border-4 border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
                 <h3 class="text-lg font-bold text-white mb-1">Connecting...</h3>
-                <button onclick="cancelConnection()" class="mt-4 text-red-400 text-xs hover:text-red-300">Cancel</button>
+                <p class="text-slate-400 text-xs mb-4">Please wait up to 15 seconds.</p>
+                <button onclick="cancelConnection()" class="text-red-400 text-xs hover:text-red-300">Cancel</button>
             </div>
 
             <!-- Empty State -->
             <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-gray-500 p-8">
                 <div class="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mb-4 border border-slate-800 shadow-xl">
-                    <i class="fa-regular fa-paper-plane text-3xl text-slate-700"></i>
+                    <i class="fa-solid fa-plug text-3xl text-slate-700"></i>
                 </div>
-                <p class="text-sm">Select a device to start.</p>
+                <p class="text-sm">Enter an ID to connect.</p>
             </div>
 
             <!-- File List -->
@@ -198,8 +171,8 @@
     <!-- Mobile Nav -->
     <div class="md:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-lg border-t border-gray-800 flex h-16 z-50">
         <button onclick="switchTab('conn')" id="tab-conn" class="flex-1 flex flex-col items-center justify-center tab-active transition-colors">
-            <i class="fa-solid fa-radar text-lg mb-1"></i>
-            <span class="text-[10px] font-bold tracking-wide mt-1">Discovery</span>
+            <i class="fa-solid fa-user-group text-lg mb-1"></i>
+            <span class="text-[10px] font-bold tracking-wide mt-1">Connect</span>
         </button>
         <button onclick="switchTab('files')" id="tab-files" class="flex-1 flex flex-col items-center justify-center tab-inactive transition-colors relative">
             <i class="fa-solid fa-file-export text-lg mb-1"></i>
@@ -209,18 +182,13 @@
     </div>
 
     <script>
-        // --- STABLE CONFIGURATION ---
-        // 64KB: The "Gold Standard" for WebRTC stability. 
-        // Going higher (e.g. 256KB) risks crashes on mobile.
-        const CHUNK_SIZE = 64 * 1024; 
+        // --- CONFIGURATION ---
+        const CHUNK_SIZE = 64 * 1024; // 64KB for compatibility
         const BUFFER_THRESHOLD = 1024 * 1024; // 1MB buffer limit
 
-        let peer, conn, discoveryConn;
+        let peer;
+        let conn;
         let myId = null;
-        let isHost = false;
-        let currentRoomHash = '';
-        let discoveredPeers = [];
-        let discoveryClients = []; 
         let activeTransfer = null;
         let connectionRequest = null;
 
@@ -238,7 +206,6 @@
             progressText: document.getElementById('progress-text'),
             progressPercent: document.getElementById('progress-percent'),
             sendBtn: document.getElementById('send-btn'),
-            peerList: document.getElementById('peer-list'),
             requestModal: document.getElementById('request-modal'),
             requestIdDisplay: document.getElementById('request-id'),
             waitingScreen: document.getElementById('waiting-screen'),
@@ -248,7 +215,6 @@
             tabFiles: document.getElementById('tab-files'),
             fileNotify: document.getElementById('file-notify'),
             qrContainer: document.getElementById('qr-container'),
-            roomInput: document.getElementById('room-input'),
             toastContainer: document.getElementById('toast-container')
         };
 
@@ -294,42 +260,17 @@
             document.getElementById('file-input').click();
         }
 
-        function applyRoomCode() {
-            const newCode = els.roomInput.value.trim();
-            if(newCode && newCode !== currentRoomHash) {
-                currentRoomHash = newCode;
-                showToast(`Joining Room: ${newCode}`, "success");
-                initPeer(); // Re-init
-            }
-        }
-
-        function refreshDiscovery() {
-            if(!isHost) connectToHost();
-            else broadcastPeerList();
-            showToast("Refreshed", "success");
-        }
-
         // --- Initialization ---
-        window.addEventListener('load', async () => {
-            try {
-                // Try to derive room from IP
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                const parts = data.ip.split(/[\.:]/);
-                currentRoomHash = parts[parts.length-1] + "-" + parts[parts.length-2];
-            } catch (e) {
-                currentRoomHash = Math.floor(Math.random()*9000 + 1000).toString();
-            }
-            els.roomInput.value = currentRoomHash;
+        window.addEventListener('load', () => {
             initPeer();
             setupDragDrop();
         });
 
-        function initPeer() {
+        function initPeer(customId = null) {
             if (peer) peer.destroy();
             
-            // Try to be Host first
-            const hostId = `wifidrop-host-${currentRoomHash}`;
+            // Random ID if no custom one provided
+            const peerId = customId || `user-${Math.floor(Math.random()*10000)}`;
             
             const options = {
                 debug: 1, 
@@ -342,132 +283,41 @@
                 }
             };
 
-            peer = new Peer(hostId, options);
+            peer = new Peer(peerId, options);
 
             peer.on('open', (id) => {
-                // Success! We are the Host.
-                isHost = true;
                 myId = id;
                 els.myId.value = id;
                 generateQR();
-                updateStatus("Host Mode", "green");
-                discoveredPeers = [{ id: myId, label: 'Host (You)' }];
-                updatePeerListUI();
+                updateStatus("Online", "green");
+                showToast("Network Ready", "success");
             });
 
             peer.on('error', (err) => {
                 if (err.type === 'unavailable-id') {
-                    // Host ID taken. Switch to Client.
-                    isHost = false;
-                    const clientId = `client-${Math.random().toString(36).substr(2, 6)}`;
-                    peer = new Peer(clientId, options);
-                    
-                    peer.on('open', (id) => {
-                        myId = id;
-                        els.myId.value = id;
-                        generateQR();
-                        updateStatus("Client Mode", "green");
-                        connectToHost();
-                    });
-                    
-                    peer.on('connection', handleIncoming);
-                    peer.on('error', (e) => {
-                        if(e.type === 'peer-unavailable') {
-                            // Host disconnected? Retry silently
-                            setTimeout(connectToHost, 3000);
-                        }
-                    });
+                    showToast("ID Taken. Try another.", "error");
+                } else if (err.type === 'peer-unavailable') {
+                    // Do nothing here, handled in initiateConnection
+                } else if (err.type === 'disconnected' || err.type === 'network' || err.message.includes('Lost connection')) {
+                    updateStatus("Reconnecting...", "yellow");
+                    if(peer && !peer.destroyed) peer.reconnect();
+                } else {
+                    console.log("Peer Error: " + err.type);
                 }
             });
 
-            peer.on('connection', handleIncoming);
+            peer.on('connection', setupConnection);
         }
 
-        // --- Discovery Logic ---
-        function connectToHost() {
-            const hostId = `wifidrop-host-${currentRoomHash}`;
-            // If we are already connected to host, skip
-            if(discoveryConn && discoveryConn.open) {
-                discoveryConn.send({ type: 'register', id: myId });
-                return;
+        function setCustomId() {
+            const newId = els.myId.value.trim();
+            if(!newId) return;
+            if(newId !== myId) {
+                initPeer(newId);
             }
-
-            updateStatus("Scanning...", "yellow");
-            discoveryConn = peer.connect(hostId, { label: 'discovery', reliable: true });
-            
-            discoveryConn.on('open', () => {
-                updateStatus("Connected", "green");
-                discoveryConn.send({ type: 'register', id: myId });
-            });
-
-            discoveryConn.on('data', (data) => {
-                if (data.type === 'peer-list') {
-                    discoveredPeers = data.peers;
-                    updatePeerListUI();
-                }
-            });
-            
-            discoveryConn.on('close', () => updateStatus("Disconnected", "yellow"));
         }
 
-        function handleIncoming(c) {
-            // Host Handling Discovery
-            if (c.label === 'discovery' && isHost) {
-                c.on('open', () => {
-                    if(!discoveryClients.includes(c)) discoveryClients.push(c);
-                });
-                c.on('data', (data) => {
-                    if (data.type === 'register') {
-                        if (!discoveredPeers.find(p => p.id === data.id)) {
-                            discoveredPeers.push({ id: data.id, label: 'Device ' + data.id.substr(-4) });
-                            broadcastPeerList();
-                        }
-                        c.send({ type: 'peer-list', peers: discoveredPeers });
-                    }
-                });
-                c.on('close', () => {
-                    discoveredPeers = discoveredPeers.filter(p => p.id !== c.peer);
-                    discoveryClients = discoveryClients.filter(conn => conn !== c);
-                    broadcastPeerList();
-                });
-                return;
-            }
-            // Standard Connection
-            setupConnection(c);
-        }
-
-        function broadcastPeerList() {
-            if (!isHost) return;
-            const data = { type: 'peer-list', peers: discoveredPeers };
-            discoveryClients.forEach(c => { if(c.open) c.send(data); });
-        }
-
-        function updatePeerListUI() {
-            els.peerList.innerHTML = '';
-            const list = discoveredPeers.filter(p => p.id !== myId);
-            
-            if (list.length === 0) {
-                els.peerList.innerHTML = `<div class="text-center py-8 border border-dashed border-gray-700 rounded-xl text-gray-500 text-xs"><i class="fa-solid fa-radar mb-2 text-xl opacity-50"></i><br>Searching Room...</div>`;
-                return;
-            }
-            
-            list.forEach(p => {
-                const div = document.createElement('div');
-                div.className = "flex items-center justify-between bg-slate-800 p-3 rounded-xl border border-gray-700 hover:border-gray-600 transition cursor-pointer";
-                div.innerHTML = `
-                    <div class="flex items-center gap-3">
-                        <div class="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-blue-400 font-bold"><i class="fa-solid fa-desktop"></i></div>
-                        <div class="text-xs font-bold text-gray-200 truncate w-32">${p.id}</div>
-                    </div>
-                    <button class="bg-blue-600 text-white w-8 h-8 rounded-lg flex items-center justify-center shadow-lg" onclick="initiateConnection('${p.id}')">
-                        <i class="fa-solid fa-link text-xs"></i>
-                    </button>
-                `;
-                els.peerList.appendChild(div);
-            });
-        }
-
-        // --- P2P Connection ---
+        // --- Connection Logic ---
         function initiateConnection(id) {
             if (!id || id === myId) return;
             if (window.innerWidth < 768) switchTab('files');
@@ -477,26 +327,28 @@
             
             if(conn) conn.close();
             
-            // Timeout safety
+            // Long timeout for slow networks
             setTimeout(() => {
                 if(!conn || !conn.open) {
                     els.waitingScreen.classList.add('hidden');
-                    showToast("Connection Timeout", "error");
+                    if (!conn) showToast("Connection Timeout. Check ID.", "error");
                 }
-            }, 5000);
+            }, 15000);
 
             try {
                 conn = peer.connect(id, { reliable: true });
                 setupConnection(conn);
-            } catch(e) { showToast("Error connecting", "error"); }
+            } catch(e) { showToast("Error initializing connection", "error"); }
         }
 
         function setupConnection(c) {
             c.on('open', () => {
+                // If we initiated, send request
                 if (c.peer === conn?.peer && !els.waitingScreen.classList.contains('hidden')) {
                     c.send({ type: 'connection-request', from: myId });
                 }
             });
+
             c.on('data', (data) => {
                 if (data.type === 'connection-request') {
                     connectionRequest = { conn: c, id: data.from };
@@ -511,7 +363,19 @@
                     handleIncomingData(data);
                 }
             });
-            c.on('close', () => { resetUI(); showToast("Disconnected", "error"); });
+
+            c.on('close', () => { 
+                resetUI(); 
+                showToast("Disconnected", "error"); 
+                updateStatus("Online", "green"); // Revert status
+            });
+            
+            c.on('error', (err) => {
+                console.error("Conn Error", err);
+                resetUI();
+                showToast("Connection Error", "error");
+            });
+
             conn = c; 
         }
 
@@ -534,7 +398,8 @@
             els.emptyState.classList.add('hidden');
             els.fileList.classList.remove('hidden');
             els.actionBar.classList.remove('hidden');
-            showToast("Connected!", "success");
+            updateStatus("Connected", "green");
+            showToast("Connected Successfully!", "success");
             if (window.innerWidth < 768) switchTab('files');
         }
 
@@ -564,7 +429,7 @@
                 if (activeTransfer.cancelled) { resetTransferUI(); return; }
                 
                 // Stable Backpressure
-                if (conn.dataChannel.bufferedAmount > 1024 * 1024) { 
+                if (conn.dataChannel.bufferedAmount > BUFFER_THRESHOLD) { 
                     await wait(50); 
                     readSlice(); 
                     return; 
@@ -653,7 +518,7 @@
             const div = document.createElement('div');
             div.className = `flex ${isSent ? 'justify-end' : 'justify-start'} animate-fade-in`;
             div.innerHTML = `
-                <div class="${isSent ? 'bg-blue-600' : 'bg-slate-700'} p-4 rounded-2xl max-w-[85%] border border-slate-600 shadow-xl">
+                <div class="${isSent ? 'bg-blue-600' : 'bg-slate-800'} p-4 rounded-2xl max-w-[85%] border border-slate-600 shadow-xl">
                     <div class="flex items-center gap-4">
                         <div class="bg-black/20 w-10 h-10 flex items-center justify-center rounded-xl shrink-0 text-white"><i class="fa-solid ${isSent ? 'fa-arrow-up' : 'fa-arrow-down'}"></i></div>
                         <div class="overflow-hidden min-w-0">
@@ -661,7 +526,7 @@
                             <p class="text-[10px] text-gray-300 mt-0.5">${formatBytes(size)}</p>
                         </div>
                     </div>
-                    ${url ? `<a href="${url}" download="${name}" class="mt-3 block w-full bg-slate-800 hover:bg-slate-600 text-center py-2.5 rounded-xl text-xs font-bold text-white transition">Save to Device</a>` : ''}
+                    ${url ? `<a href="${url}" download="${name}" class="mt-3 block w-full bg-slate-700 hover:bg-slate-600 text-center py-2.5 rounded-xl text-xs font-bold text-white transition">Save to Device</a>` : ''}
                 </div>`;
             els.fileList.appendChild(div);
             els.fileList.scrollTop = els.fileList.scrollHeight;
@@ -676,6 +541,7 @@
             els.fileList.innerHTML = '';
         }
         function formatBytes(b) { if(!b) return '0B'; const k=1024, i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ['B','KB','MB','GB'][i]; }
+        
         function copyId() {
             const textArea = document.createElement("textarea");
             textArea.value = myId;
