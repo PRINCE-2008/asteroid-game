@@ -3,339 +3,474 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WiFi Drop - Auto Discovery</title>
+    <title>WiFi Drop - Diagnostic</title>
+    
+    <!-- Styling & Icons -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Networking Libraries -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; touch-action: manipulation; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .tab-active { color: #60a5fa; background: rgba(51, 65, 85, 0.5); border-top: 2px solid #60a5fa; }
-        .tab-inactive { color: #94a3b8; border-top: 2px solid transparent; }
-        .modal-enter { animation: modalIn 0.2s ease-out forwards; }
-        @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        .toast-enter { animation: slideIn 0.3s ease-out forwards; }
-        .toast-exit { animation: slideOut 0.3s ease-in forwards; }
-        @keyframes slideIn { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translate(-50%, 0); } }
-        @keyframes slideOut { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -20px); } }
+        body { background-color: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        .pulse-ring { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); } 100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); } }
+        /* Log styling */
+        .log-entry { font-family: monospace; font-size: 10px; padding: 2px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .log-info { color: #60a5fa; }
+        .log-success { color: #4ade80; }
+        .log-error { color: #f87171; }
+        .log-warn { color: #fbbf24; }
     </style>
 </head>
-<body class="h-[100dvh] flex flex-col overflow-hidden bg-slate-900">
+<body class="h-[100dvh] flex flex-col overflow-hidden">
 
-    <div id="toast-container" class="fixed top-4 left-1/2 z-[150] flex flex-col gap-2 w-max max-w-[90%] pointer-events-none transform -translate-x-1/2"></div>
-
-    <div id="request-modal" class="fixed inset-0 bg-black/90 z-[100] hidden flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-slate-800 border border-gray-600 rounded-2xl p-6 max-w-sm w-full shadow-2xl modal-enter text-center">
-            <h3 class="text-xl font-bold text-white mb-2">Connect Request</h3>
-            <p class="text-gray-400 text-sm mb-6"><span id="request-id" class="font-mono text-white bg-slate-700 px-1 rounded">Device</span> wants to connect.</p>
-            <div class="flex gap-3">
-                <button onclick="respondToRequest(false)" class="flex-1 py-2.5 rounded-xl border border-slate-600 text-slate-300">Decline</button>
-                <button onclick="respondToRequest(true)" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-white font-bold">Accept</button>
-            </div>
-        </div>
-    </div>
-
-    <nav class="h-16 border-b border-gray-800 bg-slate-900/95 flex justify-between items-center px-4 shrink-0">
+    <!-- Navbar -->
+    <nav class="h-14 border-b border-gray-800 bg-slate-900 flex justify-between items-center px-4 shrink-0 z-20">
         <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center"><i class="fa-solid fa-wifi text-white"></i></div>
-            <h1 class="font-bold text-lg text-white">WiFi<span class="text-blue-500">Drop</span> <span class="text-[10px] text-gray-500">AUTO</span></h1>
+            <div class="w-8 h-8 rounded bg-blue-600 flex items-center justify-center text-white"><i class="fa-solid fa-wifi"></i></div>
+            <h1 class="font-bold text-lg text-white">WiFi<span class="text-blue-500">Drop</span></h1>
         </div>
-        <div id="status-pill" class="px-3 py-1 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-2">
-            <div class="w-2 h-2 rounded-full bg-slate-500"></div><span id="status-text">Init...</span>
+        <div id="status-badge" class="px-3 py-1 rounded-full text-[10px] font-bold bg-slate-800 border border-slate-700 text-slate-400 flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-red-500" id="status-dot"></div>
+            <span id="status-text">Disconnected</span>
         </div>
     </nav>
 
-    <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden min-h-0">
-        <div id="left-panel" class="w-full md:w-[340px] bg-slate-900 border-r border-gray-800 flex flex-col h-full overflow-y-auto pb-20 md:pb-0">
-            <div class="p-4 space-y-4">
-                <!-- Room Settings -->
-                <div class="glass p-4 rounded-2xl border border-gray-800 bg-slate-800/30">
-                    <div class="flex justify-between items-center mb-2"><span class="text-xs font-bold text-gray-500 uppercase">Room Code</span></div>
-                    <div class="flex gap-2 mb-3">
-                        <input type="text" id="room-input" class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white" placeholder="Room">
-                        <button onclick="applyRoomCode()" class="bg-slate-700 text-white px-3 rounded-lg text-xs font-bold">Set</button>
+    <!-- Content Area -->
+    <div class="flex-1 flex flex-col md:flex-row relative overflow-hidden">
+        
+        <!-- Left: Connectivity Panel -->
+        <div class="w-full md:w-[350px] bg-slate-900 border-r border-gray-800 flex flex-col h-full z-10">
+            <div class="p-4 space-y-4 flex-1 overflow-y-auto">
+                
+                <!-- Share Card -->
+                <div class="glass p-5 rounded-2xl border border-gray-700">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xs font-bold text-gray-400 uppercase tracking-wider">My Device</h2>
+                        <button onclick="toggleQR()" class="text-blue-400 hover:text-white text-xs"><i class="fa-solid fa-qrcode mr-1"></i>QR</button>
                     </div>
-                    <div class="flex bg-slate-900 p-1 rounded-lg border border-gray-700">
-                        <button onclick="manualSetRole('auto')" id="btn-role-auto" class="flex-1 py-1.5 text-[10px] font-bold rounded bg-blue-600 text-white">Auto</button>
-                        <button onclick="manualSetRole('host')" id="btn-role-host" class="flex-1 py-1.5 text-[10px] font-bold rounded text-gray-400">Host</button>
-                        <button onclick="manualSetRole('client')" id="btn-role-client" class="flex-1 py-1.5 text-[10px] font-bold rounded text-gray-400">Client</button>
+
+                    <div class="relative mb-3">
+                        <input id="my-id" readonly class="w-full bg-slate-950 border border-gray-600 rounded-xl py-3 pl-3 pr-10 text-xs font-mono text-white outline-none focus:border-blue-500 transition-colors" value="Initializing...">
+                        <button onclick="copyToClipboard(document.getElementById('my-id').value)" class="absolute right-2 top-2 p-1 text-gray-400 hover:text-white"><i class="fa-regular fa-copy"></i></button>
+                    </div>
+
+                    <div id="qr-area" class="hidden flex justify-center mb-4 bg-white p-2 rounded-xl">
+                        <canvas id="qr-code"></canvas>
+                    </div>
+
+                    <button onclick="copyLink()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-900/20 transition active:scale-95 flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-link"></i> Copy Magic Link
+                    </button>
+                </div>
+
+                <!-- Connect Manual -->
+                <div class="glass p-4 rounded-2xl border border-gray-700">
+                    <label class="text-[10px] font-bold text-gray-500 uppercase block mb-2">Connect Manually</label>
+                    <div class="flex gap-2">
+                        <input id="remote-id" placeholder="Paste ID here" class="w-full bg-slate-950 border border-gray-600 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500">
+                        <button onclick="connectToPeer()" class="bg-slate-700 hover:bg-slate-600 text-white w-10 rounded-xl flex items-center justify-center shadow-lg transition">
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
                     </div>
                 </div>
 
-                <!-- My ID -->
-                <div class="glass p-4 rounded-2xl border border-gray-800 bg-slate-800/30">
-                    <label class="text-xs font-bold text-gray-500 uppercase block mb-2">My ID</label>
-                    <div class="flex gap-2 mb-2">
-                        <input id="my-id-input" type="text" disabled class="w-full bg-slate-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white">
-                        <button onclick="copyId()" class="text-gray-400 hover:text-white"><i class="fa-regular fa-copy"></i></button>
+                <!-- System Log -->
+                <div class="flex-1 min-h-[150px] bg-black/30 rounded-xl border border-gray-800 p-3 overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-[10px] font-bold text-gray-500 uppercase">System Log</span>
+                        <button onclick="clearLog()" class="text-[10px] text-gray-600 hover:text-white">Clear</button>
                     </div>
-                    <div id="qr-container" class="hidden bg-white p-2 rounded-lg mx-auto w-max"><canvas id="qr-code" class="w-24 h-24"></canvas></div>
-                    <button onclick="toggleQR()" class="text-[10px] text-blue-400 w-full text-center mt-1">Show QR</button>
+                    <div id="system-log" class="flex-1 overflow-y-auto font-mono text-[10px] space-y-1">
+                        <div class="log-info">> App started.</div>
+                    </div>
                 </div>
 
-                <!-- Discovery List -->
-                <div class="flex-1">
-                    <div class="flex justify-between items-center mb-2 px-1">
-                        <span class="text-xs font-bold text-gray-500 uppercase">Nearby</span>
-                        <button onclick="refreshDiscovery()" class="text-[10px] text-blue-400"><i class="fa-solid fa-rotate-right"></i></button>
-                    </div>
-                    <div id="peer-list" class="space-y-2">
-                        <div class="text-center py-4 border border-dashed border-gray-800 rounded-lg text-gray-600 text-xs">Scanning...</div>
-                    </div>
-                </div>
             </div>
         </div>
 
-        <div id="right-panel" class="w-full flex-1 bg-slate-950 relative flex flex-col h-full hidden md:flex min-h-0">
-            <div id="drop-zone" class="absolute inset-0 bg-blue-600/20 z-50 hidden backdrop-blur-sm flex items-center justify-center border-4 border-blue-500 border-dashed m-6 rounded-3xl"><h2 class="text-2xl font-bold text-white">Drop to Send</h2></div>
+        <!-- Right: File Transfer Area -->
+        <div class="flex-1 bg-slate-950 relative flex flex-col h-full min-h-0">
             
-            <div id="empty-state" class="flex-1 flex flex-col items-center justify-center text-gray-500">
-                <i class="fa-regular fa-paper-plane text-4xl mb-4 opacity-50"></i>
-                <p>Select a device to connect</p>
+            <!-- Connection Overlay -->
+            <div id="connect-overlay" class="absolute inset-0 bg-slate-950 z-20 flex flex-col items-center justify-center text-center p-6">
+                <div class="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center mb-6 border border-slate-800 shadow-2xl pulse-ring">
+                    <i class="fa-solid fa-satellite-dish text-3xl text-gray-600"></i>
+                </div>
+                <h3 class="text-xl font-bold text-white mb-2">Waiting for Connection</h3>
+                <p class="text-gray-400 text-sm max-w-xs mb-6">Share the link or enter an ID to start.</p>
+                <div class="flex gap-2">
+                    <button onclick="testConnection()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-gray-300 border border-slate-700">Self-Test</button>
+                    <button onclick="location.reload()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs text-gray-300 border border-slate-700">Reload</button>
+                </div>
             </div>
-            
-            <div id="file-list" class="flex-1 overflow-y-auto p-4 space-y-3 hidden"></div>
-            
-            <div id="action-bar" class="p-4 bg-slate-900 border-t border-gray-800 hidden">
-                <input type="file" id="file-input" class="hidden" onchange="handleFiles(this.files)">
-                <button onclick="document.getElementById('file-input').click()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-lg">Send File</button>
+
+            <!-- Drag Drop Zone -->
+            <div id="drop-zone" class="absolute inset-0 bg-blue-600/10 z-30 hidden backdrop-blur-sm border-4 border-blue-500/50 border-dashed m-4 rounded-3xl flex items-center justify-center pointer-events-none">
+                <h2 class="text-2xl font-bold text-white">Drop to Send</h2>
+            </div>
+
+            <!-- Chat/File List -->
+            <div id="file-list" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 pb-24"></div>
+
+            <!-- Action Bar -->
+            <div class="p-4 bg-slate-900/90 backdrop-blur border-t border-gray-800 z-10">
+                <input type="file" id="file-input" class="hidden" onchange="sendFile(this.files[0])">
+                
+                <div class="max-w-3xl mx-auto">
+                    <button onclick="document.getElementById('file-input').click()" id="send-btn" disabled class="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-slate-800">
+                        <i class="fa-solid fa-paper-plane"></i> Send File
+                    </button>
+                    
+                    <!-- Progress Bar -->
+                    <div id="progress-container" class="hidden mt-3 bg-slate-800 p-3 rounded-xl border border-gray-700">
+                        <div class="flex justify-between text-[10px] mb-1.5 font-bold uppercase tracking-wider text-blue-400">
+                            <span>Transferring...</span>
+                            <span id="progress-pct">0%</span>
+                        </div>
+                        <div class="h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                            <div id="progress-bar" class="h-full bg-blue-500 w-0 transition-all duration-100"></div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Mobile Nav -->
-    <div class="md:hidden fixed bottom-0 w-full bg-slate-900/95 backdrop-blur-lg border-t border-gray-800 flex h-16 z-50">
-        <button onclick="switchTab('conn')" id="tab-conn" class="flex-1 flex flex-col items-center justify-center tab-active"><i class="fa-solid fa-radar mb-1"></i><span class="text-[10px]">Devices</span></button>
-        <button onclick="switchTab('files')" id="tab-files" class="flex-1 flex flex-col items-center justify-center tab-inactive"><i class="fa-solid fa-file-export mb-1"></i><span class="text-[10px]">Transfer</span></button>
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-4 py-2 rounded-full shadow-2xl border border-gray-700 text-xs font-bold flex items-center gap-2 opacity-0 pointer-events-none transition-opacity z-50 transform translate-y-[-10px]">
+        <i class="fa-solid fa-info-circle text-blue-400"></i> <span id="toast-msg">Notification</span>
     </div>
 
     <script>
-        const CHUNK_SIZE = 64 * 1024;
-        let peer, conn, discoveryConn, myId, isHost = false, currentRoomHash = 'default', discoveredPeers = [], discoveryClients = [], activeTransfer = null, connectionRequest = null;
+        const CHUNK_SIZE = 64 * 1024; 
+        let peer, conn, myId;
         
         const els = {
-            peerList: document.getElementById('peer-list'),
-            fileList: document.getElementById('file-list'),
-            emptyState: document.getElementById('empty-state'),
-            actionBar: document.getElementById('action-bar'),
-            leftPanel: document.getElementById('left-panel'),
-            rightPanel: document.getElementById('right-panel'),
-            roomInput: document.getElementById('room-input'),
-            myIdInput: document.getElementById('my-id-input'),
-            statusPill: document.getElementById('status-pill'),
+            myId: document.getElementById('my-id'),
+            remoteId: document.getElementById('remote-id'),
+            statusDot: document.getElementById('status-dot'),
             statusText: document.getElementById('status-text'),
-            modal: document.getElementById('request-modal'),
-            reqId: document.getElementById('request-id'),
-            dropZone: document.getElementById('drop-zone')
+            overlay: document.getElementById('connect-overlay'),
+            fileList: document.getElementById('file-list'),
+            sendBtn: document.getElementById('send-btn'),
+            progressContainer: document.getElementById('progress-container'),
+            progressBar: document.getElementById('progress-bar'),
+            progressPct: document.getElementById('progress-pct'),
+            toast: document.getElementById('toast'),
+            toastMsg: document.getElementById('toast-msg'),
+            log: document.getElementById('system-log')
         };
 
-        function showToast(msg, type='info') {
-            const t = document.createElement('div');
-            t.className = `px-4 py-2 rounded-lg shadow-lg text-xs font-bold text-white mb-2 toast-enter transform -translate-x-1/2 ${type==='error'?'bg-red-500':'bg-slate-700'}`;
-            t.textContent = msg;
-            document.getElementById('toast-container').appendChild(t);
-            setTimeout(() => { t.remove(); }, 3000);
+        function addLog(msg, type='info') {
+            const div = document.createElement('div');
+            div.className = `log-entry log-${type}`;
+            div.textContent = `> ${msg}`;
+            els.log.appendChild(div);
+            els.log.scrollTop = els.log.scrollHeight;
         }
 
-        function switchTab(t) {
-            if(t === 'conn') { els.leftPanel.classList.remove('hidden'); els.rightPanel.classList.add('hidden'); }
-            else { els.leftPanel.classList.add('hidden'); els.rightPanel.classList.remove('hidden'); els.rightPanel.classList.add('flex'); }
+        function clearLog() {
+            els.log.innerHTML = '';
         }
 
-        function updateStatus(txt, col) {
-            els.statusText.textContent = txt;
-            els.statusPill.querySelector('div').className = `w-2 h-2 rounded-full ${col==='green'?'bg-green-500':'bg-slate-500'}`;
-        }
-
-        window.onload = async () => {
-            try {
-                const res = await fetch('https://api.ipify.org?format=json');
-                const data = await res.json();
-                const p = data.ip.split('.');
-                currentRoomHash = p[p.length-1]+'-'+p[p.length-2];
-            } catch(e) { currentRoomHash = Math.floor(Math.random()*9999).toString(); }
-            els.roomInput.value = currentRoomHash;
-            initPeer(currentRoomHash, 'auto');
+        window.addEventListener('load', () => {
+            initPeer();
             
-            window.ondragenter = () => els.dropZone.classList.remove('hidden');
-            els.dropZone.ondragleave = () => els.dropZone.classList.add('hidden');
-            els.dropZone.ondrop = (e) => { e.preventDefault(); els.dropZone.classList.add('hidden'); handleFiles(e.dataTransfer.files); };
-            els.dropZone.ondragover = e => e.preventDefault();
-        };
-
-        function manualSetRole(role) {
-            ['auto','host','client'].forEach(r => document.getElementById(`btn-role-${r}`).className = `flex-1 py-1.5 text-[10px] font-bold rounded ${r===role?'bg-blue-600 text-white':'text-gray-400'}`);
-            if(peer) peer.destroy();
-            discoveredPeers = []; discoveryClients = []; updateList();
-            initPeer(currentRoomHash, role);
-        }
-
-        function applyRoomCode() {
-            currentRoomHash = els.roomInput.value;
-            manualSetRole('auto');
-        }
-
-        function refreshDiscovery() {
-            if(!isHost) connectToHost(`wifidrop-host-${currentRoomHash}`);
-            else broadcast();
-        }
-
-        function initPeer(room, role) {
-            const hostId = `wifidrop-host-${room}`;
-            let id = role === 'host' ? hostId : (role === 'client' ? null : hostId);
-            
-            peer = id ? new Peer(id) : new Peer();
-            
-            peer.on('open', (pid) => {
-                myId = pid;
-                els.myIdInput.value = pid;
-                new QRious({element:document.getElementById('qr-code'), value:pid, size:100});
-                
-                if(pid === hostId) {
-                    isHost = true;
-                    updateStatus("Host Mode", "green");
-                    discoveredPeers = [{id: myId, label: 'Host (You)'}];
-                    updateList();
-                } else {
-                    isHost = false;
-                    updateStatus("Client Mode", "green");
-                    connectToHost(hostId);
-                }
-            });
-
-            peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') {
-                    if(role === 'host') return showToast("Host ID taken", "error");
-                    isHost = false;
-                    peer.destroy();
-                    // Fallback to random client ID
-                    setTimeout(() => {
-                        peer = new Peer();
-                        peer.on('open', (pid) => {
-                            myId = pid; els.myIdInput.value = pid;
-                            updateStatus("Client Mode", "green");
-                            connectToHost(hostId);
-                            // Re-attach conn listener
-                            peer.on('connection', handleIncoming);
-                        });
-                        peer.on('connection', handleIncoming);
-                    }, 200);
-                }
-            });
-            
-            peer.on('connection', handleIncoming);
-        }
-
-        function connectToHost(hid) {
-            updateStatus("Scanning...", "yellow");
-            discoveryConn = peer.connect(hid, {label:'discovery'});
-            setTimeout(() => { if(discoveryConn.open) discoveryConn.send({type:'register', id:myId}); }, 1000);
-            discoveryConn.on('open', () => { updateStatus("Connected to Host", "green"); discoveryConn.send({type:'register', id:myId}); });
-            discoveryConn.on('data', d => { if(d.type==='list') { discoveredPeers=d.peers; updateList(); }});
-        }
-
-        function handleIncoming(c) {
-            if(c.label === 'discovery' && isHost) {
-                c.on('open', () => {
-                    if(!discoveryClients.includes(c)) discoveryClients.push(c);
-                });
-                c.on('data', d => {
-                    if(d.type === 'register') {
-                        if(!discoveredPeers.find(p=>p.id===d.id)) discoveredPeers.push({id:d.id});
-                        c.send({type:'list', peers:discoveredPeers});
-                        broadcast();
+            // Auto Connect
+            const urlParams = new URLSearchParams(window.location.search);
+            const targetPeer = urlParams.get('connect');
+            if(targetPeer) {
+                document.getElementById('remote-id').value = targetPeer;
+                addLog(`Auto-connect found ID: ${targetPeer}`, 'warn');
+                // Wait for peer ready
+                const checkReady = setInterval(() => {
+                    if (peer && !peer.disconnected && !peer.destroyed && myId) {
+                        clearInterval(checkReady);
+                        connectToPeer();
                     }
-                });
-                c.on('close', () => {
-                    discoveredPeers = discoveredPeers.filter(p=>p.id!==c.peer);
-                    broadcast();
-                });
+                }, 500);
+            }
+
+            setupDragDrop();
+        });
+
+        function initPeer() {
+            addLog("Initializing Peer...", 'info');
+            
+            // Random ID
+            const randomId = Math.random().toString(36).substr(2, 5);
+            
+            peer = new Peer(randomId, {
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
+            });
+
+            peer.on('open', id => {
+                myId = id;
+                els.myId.value = id;
+                updateStatus('online');
+                generateQR(id);
+                addLog(`Peer Created. ID: ${id}`, 'success');
+            });
+
+            peer.on('connection', c => {
+                addLog(`Incoming connection from ${c.peer}`, 'warn');
+                conn = c;
+                setupConnection();
+            });
+
+            peer.on('error', err => {
+                console.error(err);
+                addLog(`Peer Error: ${err.type}`, 'error');
+                showToast("Error: " + err.type);
+                if(err.type === 'peer-unavailable') {
+                    addLog("Target device not found. Check ID.", 'error');
+                }
+            });
+            
+            peer.on('disconnected', () => {
+                updateStatus('offline');
+                addLog("Disconnected from server.", 'error');
+                setTimeout(() => { 
+                    if(peer && !peer.destroyed) {
+                        addLog("Reconnecting...", 'warn');
+                        peer.reconnect(); 
+                    }
+                }, 3000);
+            });
+        }
+
+        function connectToPeer() {
+            const targetId = els.remoteId.value.trim();
+            if(!targetId) return showToast("Enter an ID");
+            if(targetId === myId) return showToast("Cannot connect to self");
+
+            addLog(`Attempting connect to ${targetId}...`, 'info');
+            
+            // Explicitly use reliable: true and json serialization
+            conn = peer.connect(targetId, { 
+                reliable: true,
+                serialization: 'json'
+            });
+            
+            setupConnection();
+        }
+
+        function setupConnection() {
+            // Connection Monitor
+            const connTimer = setTimeout(() => {
+                if(!conn.open) {
+                    addLog("Connection timeout. Firewall blocked?", 'error');
+                }
+            }, 5000);
+
+            conn.on('open', () => {
+                clearTimeout(connTimer);
+                updateStatus('connected');
+                els.overlay.classList.add('hidden');
+                els.sendBtn.disabled = false;
+                addLog(`Connected to ${conn.peer}`, 'success');
+                showToast("Connected Successfully!");
+                
+                // Clear URL param
+                window.history.replaceState({}, document.title, window.location.pathname);
+            });
+
+            conn.on('data', handleData);
+
+            conn.on('close', () => {
+                updateStatus('online');
+                els.overlay.classList.remove('hidden');
+                els.sendBtn.disabled = true;
+                addLog("Partner disconnected", 'error');
+                showToast("Connection Lost");
+            });
+            
+            conn.on('error', (err) => {
+                addLog(`Connection Error: ${err}`, 'error');
+            });
+        }
+
+        function sendFile(file) {
+            if(!conn || !conn.open) return showToast("Not Connected");
+            if(!file) return;
+
+            addLog(`Sending ${file.name}...`, 'info');
+            conn.send({ type: 'meta', name: file.name, size: file.size, mime: file.type });
+            
+            addFileBubble('sent', file.name, file.size);
+            els.progressContainer.classList.remove('hidden');
+
+            const reader = new FileReader();
+            let offset = 0;
+
+            reader.onload = (e) => {
+                conn.send({ type: 'chunk', data: e.target.result });
+                offset += e.target.result.byteLength;
+                
+                const pct = Math.round((offset / file.size) * 100);
+                els.progressBar.style.width = pct + '%';
+                els.progressPct.textContent = pct + '%';
+
+                if (offset < file.size) {
+                    readSlice(offset);
+                } else {
+                    els.progressContainer.classList.add('hidden');
+                    addLog("File sent successfully", 'success');
+                    showToast("Sent Successfully");
+                }
+            };
+
+            const readSlice = (o) => {
+                const slice = file.slice(o, o + CHUNK_SIZE);
+                reader.readAsArrayBuffer(slice);
+            };
+
+            readSlice(0);
+        }
+
+        let incoming = null;
+        function handleData(data) {
+            if(data.type === 'meta') {
+                incoming = {
+                    name: data.name,
+                    size: data.size,
+                    mime: data.mime,
+                    buffer: [],
+                    received: 0
+                };
+                els.progressContainer.classList.remove('hidden');
+                els.progressPct.textContent = "Receiving...";
+                addLog(`Receiving ${data.name}...`, 'info');
                 return;
             }
-            setupConn(c);
-        }
 
-        function broadcast() {
-            if(!isHost) return;
-            discoveryClients.forEach(c => { if(c.open) c.send({type:'list', peers:discoveredPeers}); });
-            updateList();
-        }
+            if(data.type === 'chunk' && incoming) {
+                incoming.buffer.push(data.data);
+                incoming.received += data.data.byteLength;
+                
+                const pct = Math.round((incoming.received / incoming.size) * 100);
+                els.progressBar.style.width = pct + '%';
+                els.progressPct.textContent = pct + '%';
 
-        function updateList() {
-            els.peerList.innerHTML = '';
-            const list = discoveredPeers.filter(p => p.id !== myId);
-            if(list.length === 0) els.peerList.innerHTML = '<div class="text-center py-4 border border-dashed border-gray-700 rounded text-gray-500 text-xs">Scanning...</div>';
-            
-            list.forEach(p => {
-                const d = document.createElement('div');
-                d.className = "flex justify-between items-center bg-slate-800 p-3 rounded-lg border border-gray-700";
-                d.innerHTML = `<div class="text-xs font-bold text-gray-300 truncate w-32">${p.id}</div><button class="bg-blue-600 text-white px-3 py-1 rounded text-xs" onclick="connect('${p.id}')">Connect</button>`;
-                els.peerList.appendChild(d);
-            });
-        }
-
-        window.connect = (id) => {
-            if(conn) conn.close();
-            conn = peer.connect(id);
-            setupConn(conn);
-            showToast("Requesting...", "info");
-        };
-
-        function setupConn(c) {
-            c.on('open', () => {
-                if(c.peer === conn?.peer) c.send({type:'req', from:myId});
-            });
-            c.on('data', d => {
-                if(d.type==='req') {
-                    connectionRequest={conn:c, id:d.from};
-                    els.reqId.textContent = d.from;
-                    els.modal.classList.remove('hidden');
-                } else if(d.type==='accept') {
-                    conn=c;
-                    els.emptyState.classList.add('hidden');
-                    els.fileList.classList.remove('hidden');
-                    els.actionBar.classList.remove('hidden');
-                    showToast("Connected!", "success");
-                    if(window.innerWidth < 768) switchTab('files');
-                } else if (d.file) { // Simple Data
-                     const blob = new Blob([d.file], {type: d.mime});
-                     const url = URL.createObjectURL(blob);
-                     const item = document.createElement('div');
-                     item.innerHTML = `<div class="bg-slate-800 p-3 rounded-lg border border-slate-700 mb-2"><p class="text-xs text-white mb-1 font-bold">${d.name}</p><a href="${url}" download="${d.name}" class="text-blue-400 text-xs">Download</a></div>`;
-                     els.fileList.appendChild(item);
+                if(incoming.received >= incoming.size) {
+                    const blob = new Blob(incoming.buffer, { type: incoming.mime });
+                    const url = URL.createObjectURL(blob);
+                    
+                    addFileBubble('received', incoming.name, incoming.size, url);
+                    
+                    els.progressContainer.classList.add('hidden');
+                    incoming = null;
+                    addLog("File received successfully", 'success');
+                    showToast("File Received");
                 }
-            });
-            c.on('close', () => { els.emptyState.classList.remove('hidden'); els.fileList.classList.add('hidden'); els.actionBar.classList.add('hidden'); showToast("Disconnected", "error"); });
-            conn=c;
+            }
         }
 
-        window.respondToRequest = (acc) => {
-            els.modal.classList.add('hidden');
-            if(acc) {
-                connectionRequest.conn.send({type:'accept'});
-                conn = connectionRequest.conn;
-                els.emptyState.classList.add('hidden');
-                els.fileList.classList.remove('hidden');
-                els.actionBar.classList.remove('hidden');
-                if(window.innerWidth < 768) switchTab('files');
+        function updateStatus(state) {
+            if(state === 'online') {
+                els.statusDot.className = "w-2 h-2 rounded-full bg-yellow-500";
+                document.getElementById('status-text').textContent = "Ready";
+            } else if (state === 'connected') {
+                els.statusDot.className = "w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_#22c55e]";
+                document.getElementById('status-text').textContent = "Connected";
             } else {
-                connectionRequest.conn.close();
+                els.statusDot.className = "w-2 h-2 rounded-full bg-red-500";
+                document.getElementById('status-text').textContent = "Offline";
             }
-        };
+        }
 
-        window.handleFiles = (files) => {
-            if(!conn || !conn.open) return showToast("Not connected", "error");
-            const f = files[0];
-            conn.send({file: f, name: f.name, mime: f.type});
-            const item = document.createElement('div');
-            item.innerHTML = `<div class="bg-blue-900/20 p-3 rounded-lg border border-blue-500/30 mb-2 text-right"><p class="text-xs text-white mb-1 font-bold">${f.name}</p><span class="text-green-400 text-xs">Sent</span></div>`;
-            els.fileList.appendChild(item);
-        };
+        function addFileBubble(type, name, size, url = null) {
+            const div = document.createElement('div');
+            const isSent = type === 'sent';
+            
+            div.className = `flex ${isSent ? 'justify-end' : 'justify-start'} fade-in`;
+            div.innerHTML = `
+                <div class="${isSent ? 'bg-blue-600' : 'bg-slate-700'} p-4 rounded-2xl max-w-[85%] border border-white/5 shadow-lg">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-black/20 w-10 h-10 flex items-center justify-center rounded-xl shrink-0 text-white">
+                            <i class="fa-solid ${isSent ? 'fa-arrow-up' : 'fa-arrow-down'}"></i>
+                        </div>
+                        <div class="overflow-hidden min-w-0">
+                            <p class="font-bold text-white text-sm truncate">${name}</p>
+                            <p class="text-[10px] text-blue-200 mt-0.5">${formatBytes(size)}</p>
+                        </div>
+                    </div>
+                    ${url ? `<a href="${url}" download="${name}" class="mt-3 block w-full bg-white/10 hover:bg-white/20 text-center py-2.5 rounded-xl text-xs font-bold text-white transition">Download</a>` : ''}
+                </div>`;
+            els.fileList.appendChild(div);
+            els.fileList.scrollTop = els.fileList.scrollHeight;
+        }
 
-        window.toggleQR = () => document.getElementById('qr-container').classList.toggle('hidden');
-        window.copyId = () => { navigator.clipboard.writeText(myId); showToast("Copied"); };
+        function copyLink() {
+            const link = `${window.location.protocol}//${window.location.host}${window.location.pathname}?connect=${myId}`;
+            copyToClipboard(link);
+            showToast("Magic Link Copied!");
+        }
+
+        function copyToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                addLog("Copied to clipboard", 'success');
+            } catch (err) {
+                console.error('Fallback: Oops, unable to copy', err);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function generateQR(id) {
+            const link = `${window.location.protocol}//${window.location.host}${window.location.pathname}?connect=${id}`;
+            new QRious({ element: document.getElementById('qr-code'), value: link, size: 200 });
+        }
+
+        function toggleQR() {
+            document.getElementById('qr-area').classList.toggle('hidden');
+        }
+
+        function showToast(msg) {
+            els.toastMsg.textContent = msg;
+            els.toast.style.opacity = '1';
+            els.toast.style.transform = 'translate(-50%, 0)';
+            setTimeout(() => {
+                els.toast.style.opacity = '0';
+                els.toast.style.transform = 'translate(-50%, -20px)';
+            }, 3000);
+        }
+
+        function formatBytes(b) { if(!b) return '0B'; const k=1024, i=Math.floor(Math.log(b)/Math.log(k)); return parseFloat((b/Math.pow(k,i)).toFixed(1)) + ['B','KB','MB','GB'][i]; }
+
+        function setupDragDrop() {
+            const dz = document.getElementById('drop-zone');
+            window.addEventListener('dragenter', () => dz.classList.remove('hidden'));
+            dz.addEventListener('dragleave', () => dz.classList.add('hidden'));
+            dz.addEventListener('dragover', e => e.preventDefault());
+            dz.addEventListener('drop', e => { 
+                e.preventDefault(); 
+                dz.classList.add('hidden'); 
+                sendFile(e.dataTransfer.files[0]); 
+            });
+        }
+
+        function testConnection() {
+            window.open(`${window.location.protocol}//${window.location.host}${window.location.pathname}?connect=${myId}`, '_blank');
+        }
     </script>
 </body>
 </html>
